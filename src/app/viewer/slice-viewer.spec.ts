@@ -17,9 +17,13 @@ describe('SliceViewer', () => {
     urls.length = 0;
     const api = {
       base: 'https://api.bossdb.io/v1/',
-      slice: (url: string) => {
+      // Like Boss: the image is X wide and (Y * Z) tall.
+      stack: (url: string) => {
         urls.push(url);
-        return Promise.resolve({ bitmap: { width: 512, height: 512 } as ImageBitmap, bytes: 2048 });
+        const [x0, x1, y0, y1, z0, z1] = (url.match(/(\d+):(\d+)/g) ?? []).flatMap((r) => r.split(':').map(Number));
+        const width = x1 - x0;
+        const height = (y1 - y0) * (z1 - z0);
+        return Promise.resolve({ rgba: new Uint8ClampedArray(width * height * 4), width, height, bytes: 2048 });
       },
     };
     TestBed.configureTestingModule({ providers: [{ provide: BossApi, useValue: api }] });
@@ -46,6 +50,24 @@ describe('SliceViewer', () => {
     xz?.click();
     await tick();
     expect(urls.at(-1)).toBe('https://api.bossdb.io/v1/cutout/c/e/h/0/244:756/400:401/0:100/');
+  });
+
+  it('splits a tall YZ request along z and reports the request count', async () => {
+    const fixture = await setup();
+    const yz = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find((b) => b.textContent?.trim() === 'YZ');
+    const before = urls.length;
+    yz?.click();
+    await tick();
+    expect(urls.slice(before)).toEqual([
+      'https://api.bossdb.io/v1/cutout/c/e/h/0/500:501/144:656/0:31/',
+      'https://api.bossdb.io/v1/cutout/c/e/h/0/500:501/144:656/31:62/',
+      'https://api.bossdb.io/v1/cutout/c/e/h/0/500:501/144:656/62:93/',
+      'https://api.bossdb.io/v1/cutout/c/e/h/0/500:501/144:656/93:100/',
+    ]);
+    await fixture.whenStable();
+    const meta = (fixture.nativeElement as HTMLElement).querySelector('.meta')?.textContent ?? '';
+    expect(meta).toContain('512×100 px');
+    expect(meta).toContain('4 requests');
   });
 
   it('shows the status line with size and the request URL', async () => {

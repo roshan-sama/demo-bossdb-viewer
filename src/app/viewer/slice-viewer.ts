@@ -1,13 +1,12 @@
 import { Component, DestroyRef, ElementRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { BossApi } from '../boss/boss-api.service';
 import { ChannelRef, CoordFrame, Plane } from '../boss/boss.models';
-import { Axis, PLANE_AXES, Range, cutoutUrl, extentOf, planeRegion } from '../boss/cutout';
+import { Axis, PLANE_AXES, Range, cutoutUrl, extentOf, planeRegion, splitForJpeg } from '../boss/cutout';
 import { Lru } from '../lib/lru';
+import { Stack, joinStacks } from '../lib/plane-pixels';
+import { mapLimit } from '../lib/pool';
 
-interface Slice {
-  bitmap: ImageBitmap;
-  bytes: number;
-}
+const MAX_PARALLEL = 6;
 
 const middle = (r: Range) => Math.floor((r[0] + r[1]) / 2);
 
@@ -35,7 +34,7 @@ export class SliceViewer {
   protected readonly range = computed(() => extentOf(this.coord())[this.fixedAxis()]);
   protected readonly fixedPos = computed(() => this.pos()[this.fixedAxis()]);
 
-  private readonly cache = new Lru<Slice>(40);
+  private readonly cache = new Lru<Stack>(60);
   private seq = 0;
   private ctl?: AbortController;
   private timer?: ReturnType<typeof setTimeout>;
@@ -83,46 +82,56 @@ export class SliceViewer {
     const plane = this.plane();
     const [h, v, f] = PLANE_AXES[plane];
     const region = planeRegion(extentOf(coord), plane, this.pos()[f], this.size());
-    const url = cutoutUrl(this.api.base, this.ref(), 0, region);
+    // A YZ plane stacks Y*Z rows into one JPEG, so tall requests are split along z (see splitForJpeg).
+    const chunks = splitForJpeg(region).map((r) => cutoutUrl(this.api.base, this.ref(), 0, r));
+    const shownUrl = chunks.length > 1 ? `${chunks[0]} (+${chunks.length - 1} more)` : chunks[0];
 
     const id = ++this.seq;
     this.ctl?.abort();
+    const ctl = (this.ctl = new AbortController());
     const t0 = performance.now();
-    const hit = this.cache.get(url);
-    this.status.set({ text: 'Loading…', warn: '', url, error: false });
+    let cached = 0;
+    this.status.set({ text: 'Loading…', warn: '', url: shownUrl, error: false });
 
     try {
-      let slice = hit;
-      if (!slice) {
-        this.ctl = new AbortController();
-        slice = await this.api.slice(url, this.ctl.signal);
-        this.cache.set(url, slice);
-      }
+      const stacks = await mapLimit(chunks, MAX_PARALLEL, async (url) => {
+        const hit = this.cache.get(url);
+        if (hit) {
+          cached++;
+          return hit;
+        }
+        const s = await this.api.stack(url, ctl.signal);
+        this.cache.set(url, s);
+        return s;
+      });
       if (id !== this.seq) return;
 
-      const { bitmap, bytes } = slice;
+      const img = joinStacks(stacks, region);
       const cv = this.canvas().nativeElement;
-      cv.width = bitmap.width;
-      cv.height = bitmap.height;
-      cv.getContext('2d')?.drawImage(bitmap, 0, 0);
+      cv.width = img.width;
+      cv.height = img.height;
+      const ctx = cv.getContext('2d');
+      if (ctx) ctx.putImageData(new ImageData(img.data, img.width, img.height), 0, 0);
 
       // Show the image at its physical proportions (voxels are rarely cubic in EM data).
       const vh = coord[`${h}_voxel_size` as `${Axis}_voxel_size`] || 1;
       const vv = coord[`${v}_voxel_size` as `${Axis}_voxel_size`] || 1;
-      this.aspect.set(`${bitmap.width * vh} / ${bitmap.height * vv}`);
+      this.aspect.set(`${img.width * vh} / ${img.height * vv}`);
 
       const ew = region[h][1] - region[h][0];
       const eh = region[v][1] - region[v][0];
       const ms = Math.round(performance.now() - t0);
+      const kb = stacks.reduce((n, s) => n + s.bytes, 0) / 1024;
+      const reqs = `${chunks.length} request${chunks.length > 1 ? 's' : ''}`;
       this.status.set({
-        text: `${bitmap.width}×${bitmap.height} px · ${(bytes / 1024).toFixed(0)} KB · ${ms} ms${hit ? ' (cached)' : ''}`,
-        warn: bitmap.width === ew && bitmap.height === eh ? '' : ` · expected ${ew}×${eh}, image may be transposed`,
-        url,
+        text: `${img.width}×${img.height} px · ${kb.toFixed(0)} KB · ${ms} ms · ${reqs}${cached === chunks.length ? ' (cached)' : ''}`,
+        warn: img.width === ew && img.height === eh ? '' : ` · expected ${ew}×${eh}`,
+        url: shownUrl,
         error: false,
       });
     } catch (err) {
       if ((err as Error).name === 'AbortError' || id !== this.seq) return;
-      this.status.set({ text: (err as Error).message, warn: '', url, error: true });
+      this.status.set({ text: (err as Error).message, warn: '', url: shownUrl, error: true });
     }
   }
 }
