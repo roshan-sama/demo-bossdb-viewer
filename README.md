@@ -6,15 +6,14 @@ A static Angular app that explores public [BossDB](https://bossdb.org) volumetri
 
 ```
 src/app/
-  boss/
-    boss.models.ts        types for collection data (CoordFrame, Experiment, Channel)
-    boss-api.service.ts   all network access (JSON metadata + JPEG cutouts), caching
-    cutout.ts             pure helpers: plane axes, centred windows, cutout URLs
-    cutout.spec.ts        unit tests for the helpers
-  app.ts / app.html       shell (shows that the API is reachable)
+  boss/       data layer: models, BossApi (all network access), cutout.ts (pure geometry + URLs)
+  explorer/   ExplorerStore (drill-down state as signals), selection.ts (URL hash), metadata panel
+  viewer/     SliceViewer: JPEG cutouts drawn to a canvas, debounced + cancellable
+  ui/         Combobox: searchable dropdown (ARIA combobox)
+  lib/        small pure helpers: Lru cache, number formatting
 ```
 
-Rule of thumb: anything that touches the network lives in `BossApi`; anything that is just geometry lives in `cutout.ts` and stays pure and tested; components only render.
+Rules of thumb: anything that touches the network lives in `BossApi`; geometry and formatting stay pure and tested; `ExplorerStore` owns state and ordering (including ignoring stale responses); components render and forward events.
 
 ## Commands
 
@@ -29,9 +28,8 @@ Angular 22 needs Node 22.22.3+ or 24.15+.
 
 ## Roadmap
 
-1. Port the prototype UI into components: searchable combobox, metadata panel, slice viewer.
-2. Synchronised XY / XZ / YZ panels with a shared crosshair.
-3. Resolution-level selector; contrast and gamma controls.
-4. Three.js 3D view from a decoded sub-volume.
+1. Synchronised XY / XZ / YZ panels with a shared crosshair.
+2. Resolution-level selector; contrast and gamma controls.
+3. Three.js 3D view from a decoded sub-volume.
 
 Data access uses the public read token (`Authorization: Token public`).

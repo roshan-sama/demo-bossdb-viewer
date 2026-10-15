@@ -1,8 +1,5 @@
 <main>
-  <h1>BossDB Explorer</h1>
-  @if (error()) {
-    <p class="error">Could not reach BossDB: {{ error() }}</p>
-  } @else {
-    <p>{{ collections().length }} public collections reachable.</p>
-  }
+  <h1>BossDB Data Explorer</h1>
+  <p class="sub">Collection → experiment → channel, straight from the public BossDB API.</p>
+  <app-explorer />
 </main>
