@@ -1,0 +1,34 @@
+<section class="card">
+  <h2 class="first">Slice viewer</h2>
+  <div class="bar">
+    <span>
+      @for (p of planes; track p) {
+        <button type="button" [attr.aria-pressed]="p === plane()" (click)="setPlane(p)">{{ p.toUpperCase() }}</button>
+      }
+    </span>
+    <label class="inline">
+      Size
+      <select (change)="setSize($event)">
+        @for (s of sizes; track s) {
+          <option [value]="s" [selected]="s === size()">{{ s }}</option>
+        }
+      </select>
+    </label>
+  </div>
+  <div class="bar">
+    <span>{{ fixedAxis() }} position</span>
+    <input
+      type="range"
+      [min]="range()[0]"
+      [max]="range()[1] - 1"
+      [value]="fixedPos()"
+      [attr.aria-label]="fixedAxis() + ' position'"
+      (input)="onSlide($event)"
+    />
+    <output>{{ fixedPos() }}</output>
+  </div>
+  <div class="frame"><canvas #cv width="4" height="4" [style.aspect-ratio]="aspect()"></canvas></div>
+  <div class="meta" [class.err]="status().error">
+    {{ status().text }}<span class="err">{{ status().warn }}</span><br />{{ status().url }}
+  </div>
+</section>
