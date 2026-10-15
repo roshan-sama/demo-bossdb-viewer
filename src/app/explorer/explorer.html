@@ -1,0 +1,43 @@
+<div class="step">
+  <app-combobox
+    label="Collection"
+    placeholder="Search collections…"
+    [items]="s.collections().data"
+    [selected]="s.sel().c"
+    [loading]="s.collections().loading"
+    [error]="s.collections().error"
+    (chosen)="s.chooseCollection($event)"
+    (retry)="s.loadCollections()"
+  />
+</div>
+<div class="step">
+  <app-combobox
+    label="Experiment"
+    [placeholder]="s.sel().c ? 'Search experiments…' : 'Choose a collection first'"
+    [items]="s.experiments().data"
+    [selected]="s.sel().e"
+    [loading]="s.experiments().loading"
+    [error]="s.experiments().error"
+    (chosen)="s.chooseExperiment($event)"
+    (retry)="s.loadExperiments()"
+  />
+</div>
+<div class="step">
+  <app-combobox
+    label="Channel"
+    [placeholder]="s.sel().e ? 'Search channels…' : 'Choose an experiment first'"
+    [items]="s.channels().data"
+    [selected]="s.sel().h"
+    [loading]="s.channels().loading"
+    [error]="s.channels().error"
+    (chosen)="s.chooseChannel($event)"
+    (retry)="s.loadChannels()"
+  />
+</div>
+
+@if (s.sel().c) {
+  <app-metadata-panel [sel]="s.sel()" [info]="s.info()" />
+}
+@if (s.target(); as t) {
+  <app-slice-viewer [ref]="t.ref" [coord]="t.coord" />
+}

@@ -1,0 +1,25 @@
+<section class="card">
+  <small>BossDB URI</small>
+  <strong>bossdb://{{ uri() }}</strong>
+  @if (info().err) {
+    <p class="err">{{ info().err }}</p>
+  }
+  @for (s of sections(); track s.title) {
+    <h2>{{ s.title }}</h2>
+    <dl>
+      @for (r of s.rows; track r[0]) {
+        <dt>{{ r[0] }}</dt>
+        <dd>{{ r[1] }}</dd>
+      }
+    </dl>
+  }
+  @if (info().chanErr) {
+    <p class="err">{{ info().chanErr }}</p>
+  }
+  @if (sections().length) {
+    <details>
+      <summary>Raw metadata</summary>
+      <pre>{{ raw() | json }}</pre>
+    </details>
+  }
+</section>

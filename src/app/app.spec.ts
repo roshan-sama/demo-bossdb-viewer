@@ -10,12 +10,13 @@ describe('App', () => {
     }).compileComponents();
   });
 
-  it('shows the collection count from the API service', async () => {
+  it('renders the three drill-down dropdowns and loads collections', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
-    fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('h1')?.textContent).toContain('BossDB Explorer');
-    expect(el.textContent).toContain('2 public collections');
+    expect(el.querySelector('h1')?.textContent).toContain('BossDB Data Explorer');
+    const labels = Array.from(el.querySelectorAll('label')).map((l) => l.textContent?.trim());
+    expect(labels).toEqual(['Collection', 'Experiment', 'Channel']);
+    expect(el.textContent).toContain('2 available');
   });
 });
