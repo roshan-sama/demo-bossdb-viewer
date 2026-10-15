@@ -15,6 +15,12 @@ src/app/
 
 Rules of thumb: anything that touches the network lives in `BossApi`; geometry and formatting stay pure and tested; `ExplorerStore` owns state and ordering (including ignoring stale responses); components render and forward events.
 
+## Boss API notes
+
+- **JPEG cutouts stack z-slices vertically.** `Accept: image/jpeg` returns one image that is X wide and (Y x Z) tall (row = z * Y + y), uint8 image channels only. An XY request (Z = 1) and an XZ request (Y = 1) are ordinary images. A YZ request (X = 1) is a 1-pixel-wide column that reads as a Y-wide, Z-tall image without moving any pixels (`joinStacks`).
+- **JPEG caps a side at 65,535 px**, so a large YZ request fails server-side (HTTP 500). `splitForJpeg` splits requests along z so each stack stays under `MAX_STACK_PX`.
+- Other documented formats: `application/blosc` (blosc-compressed C-order array) and `application/blosc-python` (Python clients only). A browser would need a WASM blosc decoder for those.
+
 ## Commands
 
 ```

@@ -38,3 +38,22 @@ export function cutoutUrl(base: string, ref: ChannelRef, resolution: number, r: 
   const ranges = (['x', 'y', 'z'] as Axis[]).map((a) => `${r[a][0]}:${r[a][1]}`).join('/');
   return `${base}cutout/${enc}/${resolution}/${ranges}/`;
 }
+
+/**
+ * Boss JPEG cutouts stack the z-slices vertically: the image is X wide and (Y * Z) tall,
+ * with row r = z * Y + y. JPEG caps a side at 65,535 px; we stay far below that so every
+ * browser canvas can decode a stack.
+ */
+export const MAX_STACK_PX = 16_000;
+
+const len = (r: Range) => r[1] - r[0];
+
+/** Split a region along z so each request's stacked image is at most `maxPx` tall. */
+export function splitForJpeg(r: Region, maxPx = MAX_STACK_PX): Region[] {
+  const perChunk = Math.max(1, Math.floor(maxPx / len(r.y)));
+  const out: Region[] = [];
+  for (let z = r.z[0]; z < r.z[1]; z += perChunk) {
+    out.push({ ...r, z: [z, Math.min(z + perChunk, r.z[1])] });
+  }
+  return out;
+}

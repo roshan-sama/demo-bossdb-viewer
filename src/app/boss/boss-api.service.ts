@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { Stack } from '../lib/plane-pixels';
 import { Channel, CoordFrame, Experiment } from './boss.models';
 
 const enc = (...s: string[]) => s.map(encodeURIComponent).join('/');
@@ -16,12 +17,24 @@ export class BossApi {
   channel(c: string, e: string, h: string) { return this.json<Channel>(`collection/${enc(c)}/experiment/${enc(e)}/channel/${enc(h)}/`); }
   coordFrame(name: string) { return this.json<CoordFrame>(`coord/${enc(name)}/`); }
 
-  /** Fetch one JPEG cutout and decode it. Pass an AbortSignal to cancel stale requests. */
-  async slice(url: string, signal?: AbortSignal): Promise<{ bitmap: ImageBitmap; bytes: number }> {
+  /**
+   * Fetch one JPEG cutout and decode it to RGBA pixels. Boss stacks z-slices vertically, so the
+   * image is X wide and (Y * Z) tall; see joinStacks. Pass an AbortSignal to cancel stale requests.
+   */
+  async stack(url: string, signal?: AbortSignal): Promise<Stack> {
     const r = await fetch(url, { headers: this.headers('image/jpeg'), signal });
     if (!r.ok) throw new Error(`HTTP ${r.status} ${(await r.text()).slice(0, 160)}`);
     const blob = await r.blob();
-    return { bitmap: await createImageBitmap(blob), bytes: blob.size };
+    const bitmap = await createImageBitmap(blob);
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) throw new Error('Canvas 2D is not available');
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const px = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    return { rgba: px.data, width: canvas.width, height: canvas.height, bytes: blob.size };
   }
 
   private headers(accept: string) {
