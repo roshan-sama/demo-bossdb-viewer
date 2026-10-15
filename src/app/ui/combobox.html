@@ -1,0 +1,40 @@
+<label [for]="id + '-in'">{{ label() }}</label>
+<div class="combo">
+  <input
+    [id]="id + '-in'"
+    type="text"
+    role="combobox"
+    aria-autocomplete="list"
+    autocomplete="off"
+    spellcheck="false"
+    [attr.aria-expanded]="open()"
+    [attr.aria-controls]="id + '-ls'"
+    [attr.aria-activedescendant]="active() >= 0 ? id + '-o' + active() : null"
+    [disabled]="inactive()"
+    [placeholder]="loading() ? 'Loading…' : placeholder()"
+    [value]="text()"
+    (input)="onInput($event)"
+    (focus)="onFocus($event)"
+    (keydown)="onKey($event)"
+  />
+  @if (open()) {
+    <ul [id]="id + '-ls'" role="listbox">
+      @for (n of shown(); track n; let i = $index) {
+        @let p = parts(n);
+        <li role="option" [id]="id + '-o' + i" [attr.aria-selected]="i === active()" (pointerdown)="choose($event, n)">{{ p[0] }}@if (p[1]) {<mark>{{ p[1] }}</mark>}{{ p[2] }}</li>
+      } @empty {
+        <li class="note">No matches</li>
+      }
+      @if (more() > 0) {
+        <li class="note">{{ more() }} more — keep typing to narrow</li>
+      }
+    </ul>
+  }
+</div>
+<div class="meta" [class.err]="!!error()" aria-live="polite">
+  @if (error()) {
+    {{ error() }} <button type="button" (click)="retry.emit()">Retry</button>
+  } @else {
+    {{ meta() }}
+  }
+</div>
