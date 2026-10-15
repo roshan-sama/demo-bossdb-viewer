@@ -31,3 +31,22 @@ describe('cutout helpers', () => {
     expect(url).toBe('https://api.bossdb.io/v1/cutout/a%20b/e/c/0/0:4/1:5/2:3/');
   });
 });
+
+import { MAX_STACK_PX, splitForJpeg } from './cutout';
+
+describe('splitForJpeg', () => {
+  it('leaves single-slice (XY) and thin (XZ) requests whole', () => {
+    expect(splitForJpeg({ x: [0, 512], y: [0, 512], z: [5, 6] })).toHaveLength(1);
+    expect(splitForJpeg({ x: [0, 512], y: [7, 8], z: [0, 512] })).toHaveLength(1);
+  });
+
+  it('splits a tall YZ stack along z and covers every slice exactly once', () => {
+    const r = { x: [500, 501], y: [0, 512], z: [0, 512] } as const;
+    const chunks = splitForJpeg({ x: [...r.x], y: [...r.y], z: [...r.z] } as never);
+    expect(chunks).toHaveLength(17);
+    expect(chunks[0].z).toEqual([0, 31]);
+    expect(chunks.at(-1)?.z).toEqual([496, 512]);
+    for (const c of chunks) expect((c.y[1] - c.y[0]) * (c.z[1] - c.z[0])).toBeLessThanOrEqual(MAX_STACK_PX);
+    expect(chunks.reduce((n, c) => n + (c.z[1] - c.z[0]), 0)).toBe(512);
+  });
+});
