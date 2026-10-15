@@ -1,0 +1,34 @@
+<section class="card">
+  <h2 class="first">3D volume</h2>
+  <div class="bar">
+    <label class="inline">
+      Block (voxels)
+      <select (change)="setPreset($event)">
+        @for (p of presets; track p.label; let i = $index) {
+          <option [value]="i" [selected]="i === preset()">{{ p.label }}</option>
+        }
+      </select>
+    </label>
+    <button type="button" [disabled]="loading()" (click)="load()">{{ dims() ? 'Reload' : 'Load 3D volume' }}</button>
+  </div>
+  <div class="meta" [class.err]="status().error">{{ status().text }}</div>
+
+  <div class="gl" [hidden]="!dims()"><canvas #gl></canvas></div>
+
+  @if (dims()) {
+    @for (a of axes; track a) {
+      <div class="bar">
+        <label class="inline"><input type="checkbox" [checked]="visible()[a]" (change)="toggle(a, $event)" /> {{ labels[a] }}</label>
+        <input type="range" min="0" [max]="max(a)" [value]="index()[a]" [attr.aria-label]="labels[a]" (input)="move(a, $event)" />
+        <output>{{ index()[a] }}</output>
+      </div>
+    }
+    <div class="bar">
+      <span>Contrast</span>
+      <input type="range" min="0.5" max="4" step="0.05" [value]="look().contrast" aria-label="Contrast" (input)="setLook('contrast', $event)" />
+      <span>Brightness</span>
+      <input type="range" min="-0.5" max="0.5" step="0.01" [value]="look().brightness" aria-label="Brightness" (input)="setLook('brightness', $event)" />
+    </div>
+    <div class="bar"><button type="button" (click)="resetView()">Reset view</button><span class="meta">Drag to orbit, scroll to zoom, right-drag to pan.</span></div>
+  }
+</section>
