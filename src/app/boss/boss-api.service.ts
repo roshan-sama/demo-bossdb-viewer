@@ -1,0 +1,53 @@
+import { Injectable } from '@angular/core';
+import { Channel, CoordFrame, Experiment } from './boss.models';
+
+const enc = (...s: string[]) => s.map(encodeURIComponent).join('/');
+
+/** All network access to the public BossDB data API lives here. */
+@Injectable({ providedIn: 'root' })
+export class BossApi {
+  readonly base = 'https://api.bossdb.io/v1/';
+  private readonly cache = new Map<string, Promise<unknown>>();
+
+  collections() { return this.names('collection/', 'collections'); }
+  experiments(c: string) { return this.names(`collection/${enc(c)}/experiment/`, 'experiments'); }
+  channels(c: string, e: string) { return this.names(`collection/${enc(c)}/experiment/${enc(e)}/channel/`, 'channels'); }
+  experiment(c: string, e: string) { return this.json<Experiment>(`collection/${enc(c)}/experiment/${enc(e)}/`); }
+  channel(c: string, e: string, h: string) { return this.json<Channel>(`collection/${enc(c)}/experiment/${enc(e)}/channel/${enc(h)}/`); }
+  coordFrame(name: string) { return this.json<CoordFrame>(`coord/${enc(name)}/`); }
+
+  /** Fetch one JPEG cutout and decode it. Pass an AbortSignal to cancel stale requests. */
+  async slice(url: string, signal?: AbortSignal): Promise<{ bitmap: ImageBitmap; bytes: number }> {
+    const r = await fetch(url, { headers: this.headers('image/jpeg'), signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${(await r.text()).slice(0, 160)}`);
+    const blob = await r.blob();
+    return { bitmap: await createImageBitmap(blob), bytes: blob.size };
+  }
+
+  private headers(accept: string) {
+    return { Authorization: 'Token public', Accept: accept };
+  }
+
+  private json<T>(path: string): Promise<T> {
+    let p = this.cache.get(path) as Promise<T> | undefined;
+    if (!p) {
+      p = fetch(this.base + path, { headers: this.headers('application/json') }).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status} for /v1/${path}`);
+        return r.json() as Promise<T>;
+      });
+      p.catch(() => this.cache.delete(path)); // don't cache failures
+      this.cache.set(path, p);
+    }
+    return p;
+  }
+
+  private async names(path: string, key: string): Promise<string[]> {
+    const j = await this.json<unknown>(path);
+    const raw = Array.isArray(j) ? j : (j as Record<string, unknown>)?.[key];
+    if (!Array.isArray(raw)) throw new Error(`Unexpected response for /v1/${path}`);
+    return raw
+      .map((c) => (typeof c === 'string' ? c : (c as { name?: string })?.name ?? ''))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }
+}
