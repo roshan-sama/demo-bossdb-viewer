@@ -33,6 +33,28 @@ export function planeRegion(extent: Region, plane: Plane, fixedPos: number, size
   } as Region;
 }
 
+/** A window of at most `size` voxels starting at `start`, clamped inside `extent`. */
+export function windowAt(extent: Range, start: number, size: number): Range {
+  const s = Math.min(Math.max(Math.floor(start), extent[0]), extent[1] - 1);
+  return [s, Math.min(s + size, extent[1])];
+}
+
+/** Like planeRegion, but starting at chosen corner coordinates; a missing start keeps that side centred. */
+export function planeRegionAt(
+  extent: Region,
+  plane: Plane,
+  fixedPos: number,
+  size: number,
+  starts: { h?: number | null; v?: number | null },
+): Region {
+  const [h, v, f] = PLANE_AXES[plane];
+  return {
+    [h]: starts.h == null ? centeredWindow(extent[h], size) : windowAt(extent[h], starts.h, size),
+    [v]: starts.v == null ? centeredWindow(extent[v], size) : windowAt(extent[v], starts.v, size),
+    [f]: [fixedPos, fixedPos + 1],
+  } as Region;
+}
+
 export function cutoutUrl(base: string, ref: ChannelRef, resolution: number, r: Region, time?: Range): string {
   const enc = [ref.collection, ref.experiment, ref.channel].map(encodeURIComponent).join('/');
   const parts = (['x', 'y', 'z'] as Axis[]).map((a) => `${r[a][0]}:${r[a][1]}`);

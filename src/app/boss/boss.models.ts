@@ -30,4 +30,6 @@ export interface ChannelRef { collection: string; experiment: string; channel: s
 export interface Overlay {
   ref: ChannelRef;
   datatype: string;
+  /** The channel's free-text description from its metadata, if any. */
+  description?: string;
 }

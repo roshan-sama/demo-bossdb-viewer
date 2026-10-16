@@ -57,3 +57,5 @@ canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; 
 .gl { margin-top: 12px; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 4 / 3; }
 .gl[hidden] { display: none; }
 .gl canvas { display: block; width: 100%; height: 100%; touch-action: none; image-rendering: auto; }
+
+input.num { width: 7rem; }

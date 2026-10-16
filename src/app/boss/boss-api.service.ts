@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Stack } from '../lib/plane-pixels';
-import { Channel, CoordFrame, Experiment } from './boss.models';
+import { Channel, ChannelRef, CoordFrame, Experiment } from './boss.models';
 
 const enc = (...s: string[]) => s.map(encodeURIComponent).join('/');
 
@@ -15,6 +15,8 @@ export class BossApi {
   channels(c: string, e: string) { return this.names(`collection/${enc(c)}/experiment/${enc(e)}/channel/`, 'channels'); }
   experiment(c: string, e: string) { return this.json<Experiment>(`collection/${enc(c)}/experiment/${enc(e)}/`); }
   channel(c: string, e: string, h: string) { return this.json<Channel>(`collection/${enc(c)}/experiment/${enc(e)}/channel/${enc(h)}/`); }
+  /** Per-resolution-level extents for a channel (shape confirmed on use; see lib/levels). */
+  downsample(r: ChannelRef) { return this.json<unknown>(`downsample/${enc(r.collection, r.experiment, r.channel)}/`); }
   coordFrame(name: string) { return this.json<CoordFrame>(`coord/${enc(name)}/`); }
 
   /**

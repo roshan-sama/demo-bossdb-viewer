@@ -102,7 +102,7 @@ export class OverlayPicker {
       if (channel.type?.toLowerCase() !== 'annotation') {
         this.note.set(`This is an ${channel.type ?? 'unknown'} channel, not an annotation, so the colours will look noisy.`);
       }
-      this.chosen.emit({ ref: { collection: c, experiment: e, channel: h }, datatype: channel.datatype!.toLowerCase() });
+      this.chosen.emit({ ref: { collection: c, experiment: e, channel: h }, datatype: channel.datatype!.toLowerCase(), description: channel.description || undefined });
     } catch (err) {
       if (id === this.seq) this.error.set(message(err));
     }

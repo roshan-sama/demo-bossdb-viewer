@@ -20,6 +20,7 @@ describe('SliceViewer', () => {
     const api = {
       base: 'https://api.bossdb.io/v1/',
       // Like Boss: the image is X wide and (Y * Z) tall.
+      downsample: () => Promise.reject(new Error('HTTP 404')),
       blosc: (url: string) => {
         blosc.push(url);
         const n = 512 * 512;
@@ -107,12 +108,55 @@ describe('SliceViewer', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('canvas.overlay')).not.toBeNull();
     const chips = Array.from(el.querySelectorAll('.legend .chip')).map((c) => c.textContent?.replace(/\s+/g, ' ').trim());
-    expect(chips).toEqual(['3 131072 px']);
+    expect(chips).toEqual(['3 131,072 px']);
   });
 
   it('has no overlay canvas or blosc request without an overlay', async () => {
     const fixture = await setup();
     expect((fixture.nativeElement as HTMLElement).querySelector('canvas.overlay')).toBeNull();
     expect(blosc).toEqual([]);
+  });
+
+  it('starts the window at typed coordinates and keeps the other side centred', async () => {
+    const fixture = await setup();
+    const el = fixture.nativeElement as HTMLElement;
+    const x = el.querySelector<HTMLInputElement>('input[aria-label="x start"]')!;
+    expect(x.value).toBe('244');
+    x.value = '100';
+    x.dispatchEvent(new Event('change'));
+    await tick();
+    expect(urls.at(-1)).toBe('https://api.bossdb.io/v1/cutout/c/e/h/0/100:612/144:656/50:51/');
+    const y = el.querySelector<HTMLInputElement>('input[aria-label="y start"]')!;
+    y.value = '700';
+    y.dispatchEvent(new Event('change'));
+    await tick();
+    expect(urls.at(-1)).toBe('https://api.bossdb.io/v1/cutout/c/e/h/0/100:612/700:800/50:51/');
+    Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Centre')?.click();
+    await tick();
+    fixture.detectChanges();
+    // The centred stack is cached, so no new request; the fields show the centred starts again.
+    expect(el.querySelector<HTMLInputElement>('input[aria-label="x start"]')!.value).toBe('244');
+    expect(el.querySelector<HTMLInputElement>('input[aria-label="y start"]')!.value).toBe('144');
+  });
+
+  it('requests a coarser resolution level with estimated extents when the server sizes are unavailable', async () => {
+    const fixture = TestBed.createComponent(SliceViewer);
+    fixture.componentRef.setInput('ref', { collection: 'c', experiment: 'e', channel: 'h' });
+    fixture.componentRef.setInput('coord', coord);
+    fixture.componentRef.setInput('levels', 3);
+    fixture.componentRef.setInput('hierarchy', 'anisotropic');
+    await fixture.whenStable();
+    await tick();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const sel = el.querySelector<HTMLSelectElement>('select')!;
+    expect(Array.from(sel.options).map((o) => o.textContent?.trim())).toEqual(['0 (full)', '1', '2']);
+    sel.value = '2';
+    sel.dispatchEvent(new Event('change'));
+    await tick();
+    await tick();
+    expect(urls.at(-1)).toBe('https://api.bossdb.io/v1/cutout/c/e/h/2/0:250/0:200/50:51/');
+    fixture.detectChanges();
+    expect(el.textContent).toContain('estimated');
   });
 });

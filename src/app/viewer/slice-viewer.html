@@ -6,6 +6,16 @@
         <button type="button" [attr.aria-pressed]="p === plane()" (click)="setPlane(p)">{{ p.toUpperCase() }}</button>
       }
     </span>
+    @if (levelList().length > 1) {
+      <label class="inline">
+        Resolution
+        <select (change)="setLevel($event)">
+          @for (l of levelList(); track l) {
+            <option [value]="l" [selected]="l === level()">{{ l === 0 ? '0 (full)' : l }}</option>
+          }
+        </select>
+      </label>
+    }
     <label class="inline">
       Size
       <select (change)="setSize($event)">
@@ -14,6 +24,23 @@
         }
       </select>
     </label>
+  </div>
+  <div class="bar">
+    @for (st of starts(); track st.axis; let i = $index) {
+      <label class="inline">
+        {{ st.axis }} start
+        <input
+          type="number"
+          class="num"
+          [min]="st.min"
+          [max]="st.max"
+          [value]="st.value"
+          [attr.aria-label]="st.axis + ' start'"
+          (change)="onStart(i === 0 ? 'h' : 'v', $event)"
+        />
+      </label>
+    }
+    <button type="button" (click)="centre()">Centre</button>
   </div>
   <div class="bar">
     <span>{{ fixedAxis() }} position</span>
@@ -52,15 +79,24 @@
   <div class="meta" [class.err]="status().error">
     {{ status().text }}<span class="err">{{ status().warn }}</span><br />{{ status().url }}
   </div>
+  @if (extentNote()) {
+    <div class="meta">{{ extentNote() }}</div>
+  }
   @if (overlay()) {
     <div class="meta" [class.err]="overlayStatus().error">{{ overlayStatus().text }}</div>
     <div class="meta">{{ hover() || 'Hover the image to read a label.' }}</div>
     @if (legend().length) {
       <div class="legend">
         @for (l of legend(); track l.id) {
-          <span class="chip"><i [style.background]="l.color"></i>{{ l.id }} <small>{{ l.count }} px</small></span>
+          <span class="chip"><i [style.background]="l.color"></i>{{ l.id }}{{ l.label ? ' – ' + l.label : '' }} <small>{{ l.px }}</small></span>
         }
       </div>
+      @if (schemeSource()) {
+        <div class="meta">Label names: {{ schemeSource() }}</div>
+      }
+    }
+    @if (description()) {
+      <div class="meta">Channel description: {{ description() }}</div>
     }
   }
 </section>
