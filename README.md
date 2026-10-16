@@ -35,10 +35,13 @@ Angular 22 needs Node 22.22.3+ or 24.15+.
 
 ## Roadmap
 
-Done: drill-down, slice viewer (XY/XZ/YZ), 3D volume block with orthogonal slice planes.
+Done: drill-down, slice viewer (XY/XZ/YZ), 3D volume block with orthogonal slice planes, blosc decode spike (`lib/blosc.ts`, with a debug panel comparing blosc and JPEG values).
+
+Channel metadata does not list response formats, so viewer availability is derived from `type`/`datatype` (`lib/capabilities.ts`): JPEG viewers for uint8 images only, blosc for any datatype.
 
 1. Ray-marched volume rendering (opacity ramp, maximum-intensity mode).
 2. Link the 3D block to the slice viewer's crosshair; synchronised XY/XZ/YZ panels.
 3. Resolution-level selector.
+4. Blosc-backed slice/volume viewers for uint16 images; label overlay for uint64 annotations.
 
 Data access uses the public read token (`Authorization: Token public`).

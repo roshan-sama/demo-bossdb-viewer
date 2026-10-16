@@ -1,0 +1,24 @@
+<section class="card">
+  <h2 class="first">Blosc decode check</h2>
+  <div class="meta">
+    Fetches a {{ 4 }}×{{ 4 }}×{{ 4 }} block from the middle of the dataset as <code>application/blosc</code>, decodes it in
+    your browser (WASM), and @if (caps().jpeg) { compares it with the JPEG for the same voxels. } @else { shows the values. }
+  </div>
+  <div class="bar"><button type="button" [disabled]="busy()" (click)="run()">{{ result() ? 'Run again' : 'Run check' }}</button></div>
+  @if (error()) { <div class="meta err">{{ error() }}</div> }
+  @if (result(); as r) {
+    <div class="meta">{{ r.dtype }} · {{ r.header }}</div>
+    <div class="meta">blosc, first 16: {{ head(r.blosc) }}</div>
+    @if (r.jpeg) {
+      <div class="meta">jpeg, first 16: {{ head(r.jpeg) }}</div>
+    }
+    @if (r.cmp; as c) {
+      <div class="meta">
+        {{ c.differing }} of {{ c.count }} voxels differ · max |Δ| {{ c.maxDiff }} · mean |Δ| {{ c.meanDiff.toFixed(2) }}
+        (JPEG is lossy, so small differences are expected; blosc is exact.)
+      </div>
+    }
+    @if (r.note) { <div class="meta">{{ r.note }}</div> }
+    <div class="meta">{{ r.url }}</div>
+  }
+</section>

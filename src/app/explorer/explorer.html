@@ -39,6 +39,18 @@
   <app-metadata-panel [sel]="s.sel()" [info]="s.info()" />
 }
 @if (s.target(); as t) {
-  <app-slice-viewer [ref]="t.ref" [coord]="t.coord" />
-  <app-volume-viewer [ref]="t.ref" [coord]="t.coord" />
+  @if (caps().jpeg) {
+    <app-slice-viewer [ref]="t.ref" [coord]="t.coord" />
+    <app-volume-viewer [ref]="t.ref" [coord]="t.coord" />
+  } @else {
+    <section class="card">
+      <div class="meta">
+        The slice and 3D viewers use JPEG cutouts, which the Boss serves only for uint8 image channels.
+        This channel is {{ s.info().chan?.type ?? 'unknown type' }} / {{ s.info().chan?.datatype ?? 'unknown datatype' }}.
+      </div>
+    </section>
+  }
+  @if (caps().blosc && s.info().chan; as chan) {
+    <app-blosc-debug [ref]="t.ref" [coord]="t.coord" [chan]="chan" />
+  }
 }
