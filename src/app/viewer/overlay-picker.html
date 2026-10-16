@@ -1,0 +1,27 @@
+<section class="card">
+  <h2 class="first">Label overlay</h2>
+  <div class="bar">
+    <label class="inline">
+      Experiment
+      <select (change)="pickExperiment(value($event))">
+        <option value="">None</option>
+        @for (e of experiments(); track e) {
+          <option [value]="e" [selected]="e === exp()">{{ e }}</option>
+        }
+      </select>
+    </label>
+    <label class="inline">
+      Channel
+      <select [disabled]="!exp()" (change)="pickChannel(value($event))">
+        <option value="">None</option>
+        @for (h of channels(); track h) {
+          <option [value]="h" [selected]="h === chan()">{{ h }}</option>
+        }
+      </select>
+    </label>
+  </div>
+  <div class="meta">Pick an annotation channel from this collection, such as a brain-region or cell label volume.</div>
+  @if (error()) { <div class="meta err">{{ error() }}</div> }
+  @if (mismatch()) { <div class="meta err">{{ mismatch() }}</div> }
+  @if (note()) { <div class="meta">{{ note() }}</div> }
+</section>

@@ -12,12 +12,27 @@ const tick = () => new Promise((r) => setTimeout(r, 20));
 
 describe('SliceViewer', () => {
   const urls: string[] = [];
+  const blosc: string[] = [];
 
   beforeEach(() => {
     urls.length = 0;
+    blosc.length = 0;
     const api = {
       base: 'https://api.bossdb.io/v1/',
       // Like Boss: the image is X wide and (Y * Z) tall.
+      blosc: (url: string) => {
+        blosc.push(url);
+        const n = 512 * 512;
+        const raw = new Uint8Array(n).fill(3).fill(0, 0, n / 2);
+        const buf = new Uint8Array(16 + n);
+        const dv = new DataView(buf.buffer);
+        buf.set([2, 1, 0x02, 1]);
+        dv.setUint32(4, n, true);
+        dv.setUint32(8, n, true);
+        dv.setUint32(12, 16 + n, true);
+        buf.set(raw, 16);
+        return Promise.resolve(buf);
+      },
       stack: (url: string) => {
         urls.push(url);
         const [x0, x1, y0, y1, z0, z1] = (url.match(/(\d+):(\d+)/g) ?? []).flatMap((r) => r.split(':').map(Number));
@@ -76,5 +91,28 @@ describe('SliceViewer', () => {
     const meta = (fixture.nativeElement as HTMLElement).querySelector('.meta')?.textContent ?? '';
     expect(meta).toContain('512×512 px');
     expect(meta).toContain('/cutout/c/e/h/0/');
+  });
+
+  it('draws a label overlay fetched as blosc, with a legend that skips label 0', async () => {
+    const fixture = TestBed.createComponent(SliceViewer);
+    fixture.componentRef.setInput('ref', { collection: 'c', experiment: 'e', channel: 'h' });
+    fixture.componentRef.setInput('coord', coord);
+    fixture.componentRef.setInput('overlay', { ref: { collection: 'c', experiment: 'e2', channel: 'labels' }, datatype: 'uint8' });
+    await fixture.whenStable();
+    await tick();
+    await tick();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(blosc).toContain('https://api.bossdb.io/v1/cutout/c/e2/labels/0/244:756/144:656/50:51/0:1/');
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('canvas.overlay')).not.toBeNull();
+    const chips = Array.from(el.querySelectorAll('.legend .chip')).map((c) => c.textContent?.replace(/\s+/g, ' ').trim());
+    expect(chips).toEqual(['3 131072 px']);
+  });
+
+  it('has no overlay canvas or blosc request without an overlay', async () => {
+    const fixture = await setup();
+    expect((fixture.nativeElement as HTMLElement).querySelector('canvas.overlay')).toBeNull();
+    expect(blosc).toEqual([]);
   });
 });

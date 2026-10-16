@@ -40,7 +40,8 @@
 }
 @if (s.target(); as t) {
   @if (caps().jpeg) {
-    <app-slice-viewer [ref]="t.ref" [coord]="t.coord" />
+    <app-overlay-picker [collection]="t.ref.collection" [frame]="s.info().exp?.coord_frame" (chosen)="overlay.set($event)" />
+    <app-slice-viewer [ref]="t.ref" [coord]="t.coord" [overlay]="overlay()" />
     <app-volume-viewer [ref]="t.ref" [coord]="t.coord" />
   } @else {
     <section class="card">

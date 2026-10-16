@@ -27,8 +27,40 @@
     />
     <output>{{ fixedPos() }}</output>
   </div>
-  <div class="frame"><canvas #cv width="4" height="4" [style.aspect-ratio]="aspect()"></canvas></div>
+  @if (overlay()) {
+    <div class="bar">
+      <span>Labels</span>
+      <input type="range" min="0" max="1" step="0.05" [value]="opacity()" aria-label="Label opacity" (input)="onOpacity($event)" />
+      <label class="inline"><input type="checkbox" [checked]="showZero()" (change)="onShowZero($event)" /> Show label 0</label>
+    </div>
+  }
+  <div class="frame">
+    <canvas #cv width="4" height="4" [style.aspect-ratio]="aspect()"></canvas>
+    @if (overlay()) {
+      <canvas
+        #ov
+        class="overlay"
+        width="4"
+        height="4"
+        [style.opacity]="opacity()"
+        aria-label="Label overlay"
+        (pointermove)="onHover($event)"
+        (pointerleave)="onLeave()"
+      ></canvas>
+    }
+  </div>
   <div class="meta" [class.err]="status().error">
     {{ status().text }}<span class="err">{{ status().warn }}</span><br />{{ status().url }}
   </div>
+  @if (overlay()) {
+    <div class="meta" [class.err]="overlayStatus().error">{{ overlayStatus().text }}</div>
+    <div class="meta">{{ hover() || 'Hover the image to read a label.' }}</div>
+    @if (legend().length) {
+      <div class="legend">
+        @for (l of legend(); track l.id) {
+          <span class="chip"><i [style.background]="l.color"></i>{{ l.id }} <small>{{ l.count }} px</small></span>
+        }
+      </div>
+    }
+  }
 </section>
