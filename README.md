@@ -1,6 +1,6 @@
 # BossDB Explorer
 
-A static Angular app that explores public [BossDB](https://bossdb.org) volumetric neuroscience data directly from the browser: collection > experiment > channel, then 2D slices drawn to a canvas. No custom backend. An independent portfolio project, not affiliated with JHU APL.
+A static Angular app that explores public [BossDB](https://bossdb.org) volumetric neuroscience data directly from the browser: collection > experiment > channel, then 2D slices drawn to a canvas. No custom backend. An independent portfolio project, not affiliated with JHU APL. See [SOURCES.md](SOURCES.md) for where each claim came from and how far to trust it.
 
 ## Layout
 
