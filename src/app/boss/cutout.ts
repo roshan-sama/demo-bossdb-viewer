@@ -33,10 +33,11 @@ export function planeRegion(extent: Region, plane: Plane, fixedPos: number, size
   } as Region;
 }
 
-export function cutoutUrl(base: string, ref: ChannelRef, resolution: number, r: Region): string {
+export function cutoutUrl(base: string, ref: ChannelRef, resolution: number, r: Region, time?: Range): string {
   const enc = [ref.collection, ref.experiment, ref.channel].map(encodeURIComponent).join('/');
-  const ranges = (['x', 'y', 'z'] as Axis[]).map((a) => `${r[a][0]}:${r[a][1]}`).join('/');
-  return `${base}cutout/${enc}/${resolution}/${ranges}/`;
+  const parts = (['x', 'y', 'z'] as Axis[]).map((a) => `${r[a][0]}:${r[a][1]}`);
+  if (time) parts.push(`${time[0]}:${time[1]}`);
+  return `${base}cutout/${enc}/${resolution}/${parts.join('/')}/`;
 }
 
 /**
@@ -56,4 +57,9 @@ export function splitForJpeg(r: Region, maxPx = MAX_STACK_PX): Region[] {
     out.push({ ...r, z: [z, Math.min(z + perChunk, r.z[1])] });
   }
   return out;
+}
+
+/** A cube of `side` voxels centred in the extent (smaller where the extent is smaller). */
+export function volumeCenter(extent: Region, side: number): Region {
+  return { x: centeredWindow(extent.x, side), y: centeredWindow(extent.y, side), z: centeredWindow(extent.z, side) };
 }

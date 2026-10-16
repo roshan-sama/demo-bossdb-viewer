@@ -50,3 +50,12 @@ describe('splitForJpeg', () => {
     expect(chunks.reduce((n, c) => n + (c.z[1] - c.z[0]), 0)).toBe(512);
   });
 });
+
+describe('cutoutUrl time range', () => {
+  it('appends an optional time range', () => {
+    const ref = { collection: 'a', experiment: 'b', channel: 'c' };
+    const r = { x: [0, 4], y: [0, 4], z: [0, 4] } as never;
+    expect(cutoutUrl('https://h/v1/', ref, 0, r, [0, 1])).toBe('https://h/v1/cutout/a/b/c/0/0:4/0:4/0:4/0:1/');
+    expect(cutoutUrl('https://h/v1/', ref, 0, r)).toBe('https://h/v1/cutout/a/b/c/0/0:4/0:4/0:4/');
+  });
+});

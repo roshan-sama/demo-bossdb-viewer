@@ -37,6 +37,13 @@ export class BossApi {
     return { rgba: px.data, width: canvas.width, height: canvas.height, bytes: blob.size };
   }
 
+  /** Fetch one cutout as raw `application/blosc` bytes (still compressed; see lib/blosc). */
+  async blosc(url: string, signal?: AbortSignal): Promise<Uint8Array> {
+    const r = await fetch(url, { headers: this.headers('application/blosc'), signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${(await r.text()).slice(0, 160)}`);
+    return new Uint8Array(await r.arrayBuffer());
+  }
+
   private headers(accept: string) {
     return { Authorization: 'Token public', Accept: accept };
   }
