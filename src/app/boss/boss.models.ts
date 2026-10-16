@@ -25,3 +25,11 @@ export interface Channel {
 }
 
 export interface ChannelRef { collection: string; experiment: string; channel: string; }
+
+/** A channel drawn as coloured labels over the slice viewer. */
+export interface Overlay {
+  ref: ChannelRef;
+  datatype: string;
+  /** The channel's free-text description from its metadata, if any. */
+  description?: string;
+}

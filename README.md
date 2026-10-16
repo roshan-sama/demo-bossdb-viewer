@@ -35,13 +35,14 @@ Angular 22 needs Node 22.22.3+ or 24.15+.
 
 ## Roadmap
 
-Done: drill-down, slice viewer (XY/XZ/YZ), 3D volume block with orthogonal slice planes, blosc decode spike (`lib/blosc.ts`, with a debug panel comparing blosc and JPEG values).
+Done: drill-down, slice viewer (XY/XZ/YZ), 3D volume block with orthogonal slice planes, blosc decode (`lib/blosc.ts`, with a debug panel comparing blosc and JPEG values), and a label overlay: pick an annotation channel from the same collection and it is fetched as blosc, coloured per id (`lib/labels.ts`) and drawn over the slice, with a legend and a hover readout. Known label sets (see `lib/label-names.ts`) show names such as "VP (ventral posterior thalamus)"; BossDB channel metadata only has a free-text description, which is shown when present. The slice viewer also takes a start corner, a size and a resolution level.
 
 Channel metadata does not list response formats, so viewer availability is derived from `type`/`datatype` (`lib/capabilities.ts`): JPEG viewers for uint8 images only, blosc for any datatype.
 
 1. Ray-marched volume rendering (opacity ramp, maximum-intensity mode).
 2. Link the 3D block to the slice viewer's crosshair; synchronised XY/XZ/YZ panels.
 3. Resolution-level selector.
-4. Blosc-backed slice/volume viewers for uint16 images; label overlay for uint64 annotations.
+4. Label names (verify against live data first), per-label toggles, and labels in the 3D view.
+5. Blosc-backed slice/volume viewers for uint16 images.
 
 Data access uses the public read token (`Authorization: Token public`).

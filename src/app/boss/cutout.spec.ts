@@ -1,4 +1,4 @@
-import { centeredWindow, cutoutUrl, planeRegion, Region } from './cutout';
+import { centeredWindow, cutoutUrl, planeRegion, planeRegionAt, Region, windowAt } from './cutout';
 
 const extent: Region = { x: [0, 1000], y: [0, 800], z: [10, 110] };
 
@@ -57,5 +57,21 @@ describe('cutoutUrl time range', () => {
     const r = { x: [0, 4], y: [0, 4], z: [0, 4] } as never;
     expect(cutoutUrl('https://h/v1/', ref, 0, r, [0, 1])).toBe('https://h/v1/cutout/a/b/c/0/0:4/0:4/0:4/0:1/');
     expect(cutoutUrl('https://h/v1/', ref, 0, r)).toBe('https://h/v1/cutout/a/b/c/0/0:4/0:4/0:4/');
+  });
+});
+
+describe('window at a start coordinate', () => {
+  it('clamps inside the extent', () => {
+    expect(windowAt([0, 1000], 100, 256)).toEqual([100, 356]);
+    expect(windowAt([0, 1000], 900, 256)).toEqual([900, 1000]);
+    expect(windowAt([10, 110], -5, 50)).toEqual([10, 60]);
+    expect(windowAt([0, 1000], 5000, 256)).toEqual([999, 1000]);
+  });
+
+  it('builds a plane region from starts, centring a missing side', () => {
+    const e: Region = { x: [0, 1000], y: [0, 800], z: [10, 110] };
+    expect(planeRegionAt(e, 'xy', 50, 256, { h: 100 })).toEqual({ x: [100, 356], y: [272, 528], z: [50, 51] });
+    expect(planeRegionAt(e, 'yz', 7, 64, { h: 10, v: 20 })).toEqual({ y: [10, 74], z: [20, 84], x: [7, 8] });
+    expect(planeRegionAt(e, 'xy', 50, 512, {})).toEqual(planeRegion(e, 'xy', 50, 512));
   });
 });
