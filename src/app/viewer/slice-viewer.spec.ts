@@ -117,6 +117,27 @@ describe('SliceViewer', () => {
     expect(blosc).toEqual([]);
   });
 
+  it('adds an edge canvas only while Edges is on, without any extra request', async () => {
+    const fixture = await setup();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('canvas.edges')).toBeNull();
+    const before = urls.length;
+    const toggle = Array.from(el.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')).find((i) => i.parentElement?.textContent?.includes('Edges'))!;
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.querySelector('canvas.edges')).not.toBeNull();
+    expect(el.querySelector('input[aria-label="Edge opacity"]')).not.toBeNull();
+    expect(urls.length).toBe(before);
+    expect(blosc).toEqual([]);
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.querySelector('canvas.edges')).toBeNull();
+  });
+
   it('starts the window at typed coordinates and keeps the other side centred', async () => {
     const fixture = await setup();
     const el = fixture.nativeElement as HTMLElement;

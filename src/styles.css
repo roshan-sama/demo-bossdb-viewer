@@ -48,6 +48,8 @@ label.inline { display: inline; margin: 0; font-weight: 400; }
 select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; }
 .frame { position: relative; margin-top: 12px; background: #000; border-radius: 8px; overflow: hidden; }
 .frame canvas.overlay { position: absolute; inset: 0; height: 100%; }
+/* The edge layer sits on top of the labels but lets the pointer through so label hover still works. */
+.frame canvas.edges { pointer-events: none; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; font-size: 0.85rem; }
 .legend .chip { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }

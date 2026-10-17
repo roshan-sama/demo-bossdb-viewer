@@ -61,6 +61,12 @@
       <label class="inline"><input type="checkbox" [checked]="showZero()" (change)="onShowZero($event)" /> Show label 0</label>
     </div>
   }
+  <div class="bar">
+    <label class="inline"><input type="checkbox" [checked]="showEdges()" (change)="onShowEdges($event)" /> Edges</label>
+    @if (showEdges()) {
+      <input type="range" min="0" max="1" step="0.05" [value]="edgeOpacity()" aria-label="Edge opacity" (input)="onEdgeOpacity($event)" />
+    }
+  </div>
   <div class="frame">
     <canvas #cv width="4" height="4" [style.aspect-ratio]="aspect()"></canvas>
     @if (overlay()) {
@@ -74,6 +80,9 @@
         (pointermove)="onHover($event)"
         (pointerleave)="onLeave()"
       ></canvas>
+    }
+    @if (showEdges()) {
+      <canvas #ed class="overlay edges" width="4" height="4" [style.opacity]="edgeOpacity()" aria-label="Edge overlay"></canvas>
     }
   </div>
   <div class="meta" [class.err]="status().error">

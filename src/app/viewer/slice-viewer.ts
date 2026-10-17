@@ -3,11 +3,12 @@ import { BossApi } from '../boss/boss-api.service';
 import { ChannelRef, CoordFrame, Overlay, Plane } from '../boss/boss.models';
 import { Axis, PLANE_AXES, Range, Region, centeredWindow, cutoutUrl, extentOf, planeRegionAt, splitForJpeg } from '../boss/cutout';
 import { decodeBlosc, interpretVoxels } from '../lib/blosc';
+import { detectEdges, edgesToRgba } from '../lib/edges';
 import { labelText, schemeFor } from '../lib/label-names';
 import { LabelData, labelColor, labelCounts, labelsToRgba } from '../lib/labels';
 import { estimateLevel, levelScales, parseDownsample } from '../lib/levels';
 import { Lru } from '../lib/lru';
-import { Stack, joinStacks } from '../lib/plane-pixels';
+import { PlanePixels, Stack, joinStacks } from '../lib/plane-pixels';
 import { mapLimit } from '../lib/pool';
 
 const MAX_PARALLEL = 6;
@@ -41,6 +42,7 @@ export class SliceViewer {
   private readonly api = inject(BossApi);
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('cv');
   private readonly overlayCanvas = viewChild<ElementRef<HTMLCanvasElement>>('ov');
+  private readonly edgeCanvas = viewChild<ElementRef<HTMLCanvasElement>>('ed');
 
   protected readonly planes: Plane[] = ['xy', 'xz', 'yz'];
   protected readonly sizes = [256, 512, 1024, 2048];
@@ -54,6 +56,9 @@ export class SliceViewer {
   protected readonly status = signal({ text: '', warn: '', url: '', error: false });
   protected readonly opacity = signal(0.6);
   protected readonly showZero = signal(false);
+  /** The edge-detection layer: computed from the image already on screen, so it needs no extra request. */
+  protected readonly showEdges = signal(false);
+  protected readonly edgeOpacity = signal(0.8);
   protected readonly overlayStatus = signal({ text: '', error: false });
   protected readonly legend = signal<{ id: string; label: string; px: string; color: string }[]>([]);
   protected readonly hover = signal('');
@@ -89,6 +94,8 @@ export class SliceViewer {
   private readonly cache = new Lru<Stack>(60);
   private readonly labelCache = new Lru<LabelPlane>(20);
   private labels?: LabelPlane;
+  /** The image currently drawn on the base canvas; the edge layer is derived from it. */
+  private base?: PlanePixels;
   private seq = 0;
   private ctl?: AbortController;
   private timer?: ReturnType<typeof setTimeout>;
@@ -120,6 +127,16 @@ export class SliceViewer {
     effect(() => {
       this.overlayCanvas();
       untracked(() => this.paintLabels());
+    });
+    // Toggling edges computes or clears the edge layer from the image already loaded.
+    effect(() => {
+      this.showEdges();
+      untracked(() => this.paintEdges());
+    });
+    // The edge canvas appears a moment after the toggle is switched on; paint once it exists.
+    effect(() => {
+      this.edgeCanvas();
+      untracked(() => this.paintEdges());
     });
     inject(DestroyRef).onDestroy(() => {
       clearTimeout(this.timer);
@@ -197,6 +214,14 @@ export class SliceViewer {
     this.showZero.set((e.target as HTMLInputElement).checked);
   }
 
+  protected onEdgeOpacity(e: Event): void {
+    this.edgeOpacity.set(+(e.target as HTMLInputElement).value);
+  }
+
+  protected onShowEdges(e: Event): void {
+    this.showEdges.set((e.target as HTMLInputElement).checked);
+  }
+
   protected onHover(e: MouseEvent): void {
     const p = this.labels;
     const cv = this.overlayCanvas()?.nativeElement;
@@ -258,6 +283,8 @@ export class SliceViewer {
       cv.height = img.height;
       const ctx = cv.getContext('2d');
       if (ctx) ctx.putImageData(new ImageData(img.data, img.width, img.height), 0, 0);
+      this.base = img;
+      this.paintEdges();
 
       // Show the image at its physical proportions (voxels are rarely cubic in EM data, and coarser
       // levels make voxels bigger on the axes they are downsampled along).
@@ -317,6 +344,21 @@ export class SliceViewer {
       this.paintLabels();
       this.overlayStatus.set({ text: (err as Error).message, error: true });
     }
+  }
+
+  /** Runs edge detection on the base image and paints it: transparent for no edge, dark to bright purple for strength. */
+  private paintEdges(): void {
+    const cv = this.edgeCanvas()?.nativeElement;
+    const img = this.base;
+    if (!cv) return;
+    if (!this.showEdges() || !img) {
+      cv.getContext('2d')?.clearRect(0, 0, cv.width, cv.height);
+      return;
+    }
+    cv.width = img.width;
+    cv.height = img.height;
+    const rgba = edgesToRgba(detectEdges(img.data, img.width, img.height));
+    cv.getContext('2d')?.putImageData(new ImageData(rgba, img.width, img.height), 0, 0);
   }
 
   private paintLabels(): void {
