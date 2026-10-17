@@ -15,24 +15,31 @@
   </div>
   @if (active() === 'edges') {
     <div role="tabpanel" id="tabpanel-edges" aria-labelledby="tab-edges">
-      <app-edge-editor />
+      <app-edge-tools />
+    </div>
+  }
+  @if (active() === 'fourier') {
+    <div role="tabpanel" id="tabpanel-fourier" aria-labelledby="tab-fourier">
+      <app-fourier-analysis />
     </div>
   }
 </ng-template>
 
-@if (desktop()) {
-  <aside class="tools" aria-label="Tools">
-    <ng-container [ngTemplateOutlet]="content" />
-  </aside>
-} @else {
-  <button type="button" class="tools-open" (click)="openDialog()">Tools</button>
-  <dialog #dlg class="tools-dialog" aria-label="Tools" (click)="onDialogClick($event)">
-    <div class="sheet">
-      <div class="sheet-head">
-        <strong>Tools</strong>
-        <button type="button" (click)="closeDialog()">Close</button>
-      </div>
+@if (ready()) {
+  @if (desktop()) {
+    <aside class="tools" aria-label="Tools">
       <ng-container [ngTemplateOutlet]="content" />
-    </div>
-  </dialog>
+    </aside>
+  } @else {
+    <button type="button" class="tools-open" (click)="openDialog()">Tools</button>
+    <dialog #dlg class="tools-dialog" aria-label="Tools" (click)="onDialogClick($event)">
+      <div class="sheet">
+        <div class="sheet-head">
+          <strong>Tools</strong>
+          <button type="button" (click)="closeDialog()">Close</button>
+        </div>
+        <ng-container [ngTemplateOutlet]="content" />
+      </div>
+    </dialog>
+  }
 }
