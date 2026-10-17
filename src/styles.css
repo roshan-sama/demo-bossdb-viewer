@@ -74,11 +74,14 @@ input.num { width: 7rem; }
 
 /*
  * Tools panel: a sticky left sidebar beside the 640px column on wide screens, a modal dialog on narrow
- * ones. The 1024px breakpoint must match DESKTOP_QUERY in app/tools/tools-panel.ts.
+ * ones. The 1024px breakpoint must match DESKTOP_QUERY in app/tools/tools-panel.ts. The panel is not
+ * rendered until the slice viewer has drawn an image, so main stays in the second column to keep the
+ * page from shifting when the sidebar appears.
  */
 app-tools-panel { display: contents; }
 @media (min-width: 1024px) {
   .layout { display: grid; grid-template-columns: 320px minmax(0, 640px); column-gap: 16px; justify-content: center; align-items: start; }
+  .layout > main { grid-column: 2; }
 }
 aside.tools { position: sticky; top: 16px; margin: 48px 0 0 20px; max-height: calc(100vh - 32px); overflow: auto; padding: 12px 14px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
 .tabs { display: flex; gap: 2px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
@@ -110,11 +113,6 @@ input.cell.wide { width: 6rem; }
 .band-no { width: 1.4rem; color: var(--mute); font-size: 0.85rem; text-align: center; }
 input.swatch { width: 2.4rem; height: 1.9rem; padding: 0; background: none; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
 input.swatch:disabled { opacity: 0.4; cursor: default; }
-
-/* Locked until the slice viewer has drawn an image: the tabs are inert, so dim them and explain why. */
-.tools-body[inert] { opacity: 0.45; }
-.hint.locked { margin: 0 0 10px; }
-.tools-open:disabled { opacity: 0.55; cursor: default; box-shadow: none; }
 
 .fourier .hint.first { margin-top: 0; }
 .fourier canvas { margin-top: 10px; background: #000; border-radius: 6px; image-rendering: auto; }

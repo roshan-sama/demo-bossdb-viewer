@@ -14,7 +14,7 @@ interface Tab {
 
 /**
  * The tools that tune what the viewers draw. On a wide screen it is a left-hand sidebar with tabs; on a
- * narrow one the same tabs open in a modal <dialog> from a floating button. Both stay locked until the
+ * narrow one the same tabs open in a modal <dialog> from a floating button. Neither is rendered until the
  * slice viewer has drawn an image, since every tool works on what it shows.
  */
 @Component({
