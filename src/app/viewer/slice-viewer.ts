@@ -3,13 +3,14 @@ import { BossApi } from '../boss/boss-api.service';
 import { ChannelRef, CoordFrame, Overlay, Plane } from '../boss/boss.models';
 import { Axis, PLANE_AXES, Range, Region, centeredWindow, cutoutUrl, extentOf, planeRegionAt, splitForJpeg } from '../boss/cutout';
 import { decodeBlosc, interpretVoxels } from '../lib/blosc';
-import { detectEdges, edgesToRgba } from '../lib/edges';
+import { Kernel3, bandLevels, edgesToRgba, imageMagnitudes } from '../lib/edges';
 import { labelText, schemeFor } from '../lib/label-names';
 import { LabelData, labelColor, labelCounts, labelsToRgba } from '../lib/labels';
 import { estimateLevel, levelScales, parseDownsample } from '../lib/levels';
 import { Lru } from '../lib/lru';
 import { PlanePixels, Stack, joinStacks } from '../lib/plane-pixels';
 import { mapLimit } from '../lib/pool';
+import { EdgeSettings } from './edge-settings';
 
 const MAX_PARALLEL = 6;
 
@@ -40,6 +41,7 @@ export class SliceViewer {
   readonly hierarchy = input<string | undefined>();
 
   private readonly api = inject(BossApi);
+  private readonly edgeSettings = inject(EdgeSettings);
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('cv');
   private readonly overlayCanvas = viewChild<ElementRef<HTMLCanvasElement>>('ov');
   private readonly edgeCanvas = viewChild<ElementRef<HTMLCanvasElement>>('ed');
@@ -96,6 +98,8 @@ export class SliceViewer {
   private labels?: LabelPlane;
   /** The image currently drawn on the base canvas; the edge layer is derived from it. */
   private base?: PlanePixels;
+  /** Gradient magnitudes of `base` for one pair of kernels; band and colour edits reuse them. */
+  private magnitudes?: { img: PlanePixels; kx: Kernel3; ky: Kernel3; data: Float32Array };
   private seq = 0;
   private ctl?: AbortController;
   private timer?: ReturnType<typeof setTimeout>;
@@ -131,6 +135,13 @@ export class SliceViewer {
     // Toggling edges computes or clears the edge layer from the image already loaded.
     effect(() => {
       this.showEdges();
+      untracked(() => this.paintEdges());
+    });
+    // Editing the kernels or bands in the tools panel repaints the edge layer.
+    effect(() => {
+      this.edgeSettings.kernelX();
+      this.edgeSettings.kernelY();
+      this.edgeSettings.bands();
       untracked(() => this.paintEdges());
     });
     // The edge canvas appears a moment after the toggle is switched on; paint once it exists.
@@ -346,7 +357,7 @@ export class SliceViewer {
     }
   }
 
-  /** Runs edge detection on the base image and paints it: transparent for no edge, dark to bright purple for strength. */
+  /** Runs edge detection on the base image with the current kernels and paints each band in its colour. */
   private paintEdges(): void {
     const cv = this.edgeCanvas()?.nativeElement;
     const img = this.base;
@@ -355,9 +366,16 @@ export class SliceViewer {
       cv.getContext('2d')?.clearRect(0, 0, cv.width, cv.height);
       return;
     }
+    const kx = this.edgeSettings.kernelX();
+    const ky = this.edgeSettings.kernelY();
+    const bands = this.edgeSettings.bands();
+    let m = this.magnitudes;
+    if (!m || m.img !== img || m.kx !== kx || m.ky !== ky) {
+      m = this.magnitudes = { img, kx, ky, data: imageMagnitudes(img.data, img.width, img.height, kx, ky) };
+    }
     cv.width = img.width;
     cv.height = img.height;
-    const rgba = edgesToRgba(detectEdges(img.data, img.width, img.height));
+    const rgba = edgesToRgba(bandLevels(m.data, bands), bands);
     cv.getContext('2d')?.putImageData(new ImageData(rgba, img.width, img.height), 0, 0);
   }
 

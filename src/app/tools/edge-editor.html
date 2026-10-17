@@ -1,0 +1,71 @@
+<section class="edge-editor">
+  <p class="hint first">Tick “Edges” in the slice viewer to see this layer. Changes apply as you make them.</p>
+
+  <h2>Kernel</h2>
+  <div class="bar">
+    <label class="inline" for="edge-preset">Preset</label>
+    <select id="edge-preset" (change)="onPreset($event)">
+      @for (p of presets; track p.name) {
+        <option [value]="p.name" [selected]="p.name === s.preset()">{{ p.name }}</option>
+      }
+      @if (s.preset() === 'Custom') {
+        <option value="Custom" selected disabled>Custom</option>
+      }
+    </select>
+  </div>
+  <div class="kernels">
+    <fieldset>
+      <legend>Horizontal (gx)</legend>
+      <div class="grid3">
+        @for (c of cells; track c) {
+          <input type="number" step="any" class="cell" [value]="s.kernelX()[c]" [attr.aria-label]="cellLabel('Horizontal', c)" (change)="onCell('x', c, $event)" />
+        }
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Vertical (gy)</legend>
+      <div class="grid3">
+        @for (c of cells; track c) {
+          <input type="number" step="any" class="cell" [value]="s.kernelY()[c]" [attr.aria-label]="cellLabel('Vertical', c)" (change)="onCell('y', c, $event)" />
+        }
+      </div>
+    </fieldset>
+  </div>
+  <p class="hint">Edge strength is √(gx² + gy²). Each kernel is scaled so a full black-to-white step reads as 255.</p>
+
+  <h2>Bands</h2>
+  <p class="hint first">
+    Each band paints the edge strengths from its start up to, but not including, its end, in its colour. A blank end has no limit.
+    Strengths that no band covers stay transparent, and where bands overlap the first one in the list wins.
+  </p>
+  @for (b of s.bands(); track $index; let i = $index) {
+    <div class="band">
+      <div class="band-top">
+        <span class="band-no">{{ i + 1 }}</span>
+        <input type="color" class="swatch" [value]="hex(i, b)" [disabled]="b.color === null" [attr.aria-label]="'Band ' + (i + 1) + ' colour'" (input)="onColor(i, $event)" />
+        <label class="inline"><input type="checkbox" [checked]="b.color === null" (change)="onTransparent(i, $event)" /> Transparent</label>
+        <button type="button" class="remove" [disabled]="!s.canRemoveBand()" [attr.aria-label]="'Remove band ' + (i + 1)" [attr.title]="'Remove band ' + (i + 1)" (click)="remove(i)">✕</button>
+      </div>
+      <div class="band-range">
+        <label class="inline">
+          From
+          <input type="number" class="cell" min="0" step="any" [value]="b.min" [attr.aria-label]="'Band ' + (i + 1) + ' start'" (change)="onMin(i, $event)" />
+        </label>
+        <label class="inline">
+          to
+          <input type="number" class="cell wide" min="0" step="any" placeholder="no limit" [value]="endText(b)" [attr.aria-label]="'Band ' + (i + 1) + ' end'" (change)="onMax(i, $event)" />
+        </label>
+        @if (b.max <= b.min) {
+          <span class="err">Empty range</span>
+        }
+      </div>
+    </div>
+  }
+  <div class="bar">
+    <button type="button" [disabled]="!s.canAddBand()" (click)="add()">Add band</button>
+    <button type="button" (click)="s.reset()">Reset to defaults</button>
+    @if (!s.canAddBand()) {
+      <span class="hint">At most {{ s.maxBands }} bands.</span>
+    }
+  </div>
+</section>
