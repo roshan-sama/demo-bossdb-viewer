@@ -22,6 +22,10 @@ export class EdgeSettings {
   readonly kernelX = signal<Kernel3>(SOBEL_X);
   readonly kernelY = signal<Kernel3>(SOBEL_Y);
   readonly bands = signal<readonly EdgeBand[]>(DEFAULT_BANDS);
+  /** Bands that stand in for `bands` while an animated sweep is on screen; null when none is. */
+  readonly animation = signal<readonly EdgeBand[] | null>(null);
+  /** The bands the slice viewer paints: the sweep's while one is on screen, otherwise the edited ones. */
+  readonly activeBands = computed(() => this.animation() ?? this.bands());
 
   readonly maxBands = MAX_BANDS;
   readonly canAddBand = computed(() => this.bands().length < MAX_BANDS);

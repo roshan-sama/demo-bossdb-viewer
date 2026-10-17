@@ -37,12 +37,12 @@ describe('ToolsPanel', () => {
     expect(el.querySelector('aside.tools')).not.toBeNull();
     expect(el.querySelector('dialog')).toBeNull();
     expect(el.querySelector('.tools-open')).toBeNull();
-    const tabs = Array.from(el.querySelectorAll<HTMLElement>('[role="tab"]'));
+    const tabs = Array.from(el.querySelectorAll<HTMLElement>('.tabs [role="tab"]'));
     expect(tabs.map((t) => t.textContent?.trim())).toEqual(['Edge detection', 'Fourier analysis']);
     expect(tabs.map((t) => t.getAttribute('aria-selected'))).toEqual(['true', 'false']);
     const panel = el.querySelector('[role="tabpanel"]')!;
     expect(panel.getAttribute('aria-labelledby')).toBe(tabs[0].id);
-    expect(panel.querySelector('app-edge-editor')).not.toBeNull();
+    expect(panel.querySelector('app-edge-tools app-edge-editor')).not.toBeNull();
     expect(el.querySelector('app-fourier-analysis')).toBeNull();
   });
 
@@ -75,7 +75,7 @@ describe('ToolsPanel', () => {
     TestBed.inject(SliceState).publish(img);
     fixture.detectChanges();
     expect(el.querySelector('aside.tools')).not.toBeNull();
-    expect(el.querySelectorAll('[role="tab"]').length).toBe(2);
+    expect(el.querySelectorAll('.tabs [role="tab"]').length).toBe(2);
 
     TestBed.inject(SliceState).reset();
     fixture.detectChanges();

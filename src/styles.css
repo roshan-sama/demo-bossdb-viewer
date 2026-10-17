@@ -114,5 +114,15 @@ input.cell.wide { width: 6rem; }
 input.swatch { width: 2.4rem; height: 1.9rem; padding: 0; background: none; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
 input.swatch:disabled { opacity: 0.4; cursor: default; }
 
+/* Subtabs inside the edge-detection tab: smaller pills under the main tab row. */
+.subtabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.subtabs button { margin: 0; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--mute); font-size: 0.85rem; }
+.subtabs button[aria-selected='true'] { color: var(--fg); background: var(--bg); font-weight: 600; }
+.edge-animated .hint.first { margin-top: 0; }
+.sweep-form { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; align-items: start; margin-top: 12px; }
+.sweep-form label { padding-top: 4px; }
+.sweep-form .err { display: block; margin-top: 2px; font-size: 0.8rem; }
+.sweep-form input[aria-invalid='true'] { border-color: var(--err); }
+
 .fourier .hint.first { margin-top: 0; }
 .fourier canvas { margin-top: 10px; background: #000; border-radius: 6px; image-rendering: auto; }

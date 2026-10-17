@@ -74,6 +74,19 @@ describe('EdgeSettings', () => {
     expect(s.canRemoveBand()).toBe(false);
   });
 
+  it('paints the animation bands while one is set and the edited bands otherwise', () => {
+    const s = make();
+    expect(s.activeBands()).toBe(DEFAULT_BANDS);
+    const sweep = [{ min: 10, max: 20, color: [1, 2, 3] as const }];
+    s.animation.set(sweep);
+    expect(s.activeBands()).toBe(sweep);
+    s.setBand(0, { max: 99 });
+    expect(s.activeBands()).toBe(sweep);
+    s.animation.set(null);
+    expect(s.activeBands()).toBe(s.bands());
+    expect(s.bands()[0].max).toBe(99);
+  });
+
   it('resets everything', () => {
     const s = make();
     s.applyPreset('Scharr');

@@ -142,11 +142,11 @@ export class SliceViewer {
       this.showEdges();
       untracked(() => this.paintEdges());
     });
-    // Editing the kernels or bands in the tools panel repaints the edge layer.
+    // Editing the kernels or bands in the tools panel, or a frame of an animated sweep, repaints the edge layer.
     effect(() => {
       this.edgeSettings.kernelX();
       this.edgeSettings.kernelY();
-      this.edgeSettings.bands();
+      this.edgeSettings.activeBands();
       untracked(() => this.paintEdges());
     });
     // The edge canvas appears a moment after the toggle is switched on; paint once it exists.
@@ -375,7 +375,7 @@ export class SliceViewer {
     }
     const kx = this.edgeSettings.kernelX();
     const ky = this.edgeSettings.kernelY();
-    const bands = this.edgeSettings.bands();
+    const bands = this.edgeSettings.activeBands();
     let m = this.magnitudes;
     if (!m || m.img !== img || m.kx !== kx || m.ky !== ky) {
       m = this.magnitudes = { img, kx, ky, data: imageMagnitudes(img.data, img.width, img.height, kx, ky) };

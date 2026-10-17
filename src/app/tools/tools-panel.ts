@@ -1,8 +1,9 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, DestroyRef, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { SliceState } from '../viewer/slice-state';
-import { EdgeEditor } from './edge-editor';
+import { EdgeTools } from './edge-tools';
 import { FourierAnalysis } from './fourier-analysis';
+import { tabKeyTarget } from './tab-nav';
 
 /** Wide enough for the sidebar beside the 640px column. Keep in step with the `.layout` rule in styles.css. */
 export const DESKTOP_QUERY = '(min-width: 1024px)';
@@ -19,7 +20,7 @@ interface Tab {
  */
 @Component({
   selector: 'app-tools-panel',
-  imports: [NgTemplateOutlet, EdgeEditor, FourierAnalysis],
+  imports: [NgTemplateOutlet, EdgeTools, FourierAnalysis],
   templateUrl: './tools-panel.html',
 })
 export class ToolsPanel {
@@ -66,8 +67,7 @@ export class ToolsPanel {
 
   /** Arrow keys move between tabs, as in the ARIA tabs pattern. */
   protected onTabKey(e: KeyboardEvent, i: number): void {
-    const n = this.tabs.length;
-    const next = e.key === 'ArrowRight' ? (i + 1) % n : e.key === 'ArrowLeft' ? (i - 1 + n) % n : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1;
+    const next = tabKeyTarget(e.key, i, this.tabs.length);
     if (next < 0) return;
     e.preventDefault();
     this.active.set(this.tabs[next].id);

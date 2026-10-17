@@ -1,0 +1,73 @@
+<section class="edge-animated">
+  <p class="hint first">
+    Plays one band across the edge strengths. It starts empty at the anchor, and its upper end grows by one each frame until it
+    reaches the destination. Tick “Edges” in the slice viewer to watch it. While a sweep is on screen it replaces the static bands.
+  </p>
+
+  <div class="sweep-form">
+    <label class="inline" for="sweep-anchor">Anchor intensity</label>
+    <div>
+      <input
+        id="sweep-anchor"
+        type="number"
+        class="cell"
+        step="1"
+        min="0"
+        [max]="maxIntensity"
+        [value]="anchorText()"
+        [attr.aria-invalid]="problems().anchor ? 'true' : null"
+        [attr.aria-describedby]="problems().anchor ? 'sweep-anchor-err' : null"
+        (input)="anchorText.set(val($event))"
+      />
+      @if (problems().anchor; as m) {
+        <span class="err" id="sweep-anchor-err">{{ m }}</span>
+      }
+    </div>
+
+    <label class="inline" for="sweep-destination">Destination intensity</label>
+    <div>
+      <input
+        id="sweep-destination"
+        type="number"
+        class="cell"
+        step="1"
+        min="0"
+        [max]="maxIntensity"
+        [value]="destinationText()"
+        [attr.aria-invalid]="problems().destination ? 'true' : null"
+        [attr.aria-describedby]="problems().destination ? 'sweep-destination-err' : null"
+        (input)="destinationText.set(val($event))"
+      />
+      @if (problems().destination; as m) {
+        <span class="err" id="sweep-destination-err">{{ m }}</span>
+      }
+    </div>
+
+    <label class="inline" for="sweep-fps">Frames per second</label>
+    <div>
+      <input
+        id="sweep-fps"
+        type="number"
+        class="cell"
+        step="any"
+        [min]="minFps"
+        [max]="maxFps"
+        [value]="fpsText()"
+        [attr.aria-invalid]="problems().fps ? 'true' : null"
+        [attr.aria-describedby]="problems().fps ? 'sweep-fps-err' : null"
+        (input)="fpsText.set(val($event))"
+      />
+      @if (problems().fps; as m) {
+        <span class="err" id="sweep-fps-err">{{ m }}</span>
+      }
+    </div>
+  </div>
+
+  <div class="bar">
+    <button type="button" [disabled]="!canRun()" (click)="start()">Run</button>
+    <button type="button" [disabled]="!sweep.active()" (click)="reset()">Reset</button>
+  </div>
+  @if (status()) {
+    <p class="hint">{{ status() }}</p>
+  }
+</section>
