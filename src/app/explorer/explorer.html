@@ -1,3 +1,10 @@
+<details class="picker" [open]="pickerOpen()" (toggle)="onPickerToggle($event)">
+<summary>
+  <span class="title">Data source</span>
+  @if (crumb()) {
+    <span class="crumb">{{ crumb() }}</span>
+  }
+</summary>
 <div class="step">
   <app-combobox
     label="Collection"
@@ -38,6 +45,7 @@
 @if (s.sel().c) {
   <app-metadata-panel [sel]="s.sel()" [info]="s.info()" />
 }
+</details>
 @if (s.target(); as t) {
   @if (caps().jpeg) {
     <app-overlay-picker [collection]="t.ref.collection" [frame]="s.info().exp?.coord_frame" (chosen)="overlay.set($event)" />
