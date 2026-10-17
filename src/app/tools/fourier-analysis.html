@@ -1,0 +1,16 @@
+<section class="fourier">
+  <p class="hint first">
+    The magnitude spectrum of the slice on screen. The centre is zero frequency: the farther a point is from it, the finer the
+    detail it stands for, up to half a cycle per pixel at the edges. The mean is removed first.
+  </p>
+  <div class="bar">
+    <label class="inline"><input type="checkbox" [checked]="s.log()" (change)="onLog($event)" /> Log scale</label>
+    <label class="inline"><input type="checkbox" [checked]="s.hann()" (change)="onHann($event)" /> Hann window</label>
+  </div>
+  @if (spec()) {
+    <canvas #cv width="4" height="4" aria-label="Fourier magnitude spectrum"></canvas>
+    <p class="hint">{{ note() }}</p>
+  } @else {
+    <p class="hint">Waiting for the slice viewer to load an image.</p>
+  }
+</section>

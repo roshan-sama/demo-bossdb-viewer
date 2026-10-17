@@ -1,23 +1,33 @@
 <ng-template #content>
-  <div class="tabs" role="tablist" aria-label="Tools">
-    @for (t of tabs; track t.id; let i = $index) {
-      <button
-        type="button"
-        role="tab"
-        [id]="'tab-' + t.id"
-        [attr.aria-selected]="t.id === active()"
-        [attr.aria-controls]="'tabpanel-' + t.id"
-        [tabindex]="t.id === active() ? 0 : -1"
-        (click)="active.set(t.id)"
-        (keydown)="onTabKey($event, i)"
-      >{{ t.label }}</button>
+  @if (!ready()) {
+    <p class="hint locked" role="status">The tools unlock once the slice viewer has loaded an image.</p>
+  }
+  <div class="tools-body" [attr.inert]="ready() ? null : ''">
+    <div class="tabs" role="tablist" aria-label="Tools">
+      @for (t of tabs; track t.id; let i = $index) {
+        <button
+          type="button"
+          role="tab"
+          [id]="'tab-' + t.id"
+          [attr.aria-selected]="t.id === active()"
+          [attr.aria-controls]="'tabpanel-' + t.id"
+          [tabindex]="t.id === active() ? 0 : -1"
+          (click)="active.set(t.id)"
+          (keydown)="onTabKey($event, i)"
+        >{{ t.label }}</button>
+      }
+    </div>
+    @if (active() === 'edges') {
+      <div role="tabpanel" id="tabpanel-edges" aria-labelledby="tab-edges">
+        <app-edge-editor />
+      </div>
+    }
+    @if (active() === 'fourier') {
+      <div role="tabpanel" id="tabpanel-fourier" aria-labelledby="tab-fourier">
+        <app-fourier-analysis />
+      </div>
     }
   </div>
-  @if (active() === 'edges') {
-    <div role="tabpanel" id="tabpanel-edges" aria-labelledby="tab-edges">
-      <app-edge-editor />
-    </div>
-  }
 </ng-template>
 
 @if (desktop()) {
@@ -25,7 +35,13 @@
     <ng-container [ngTemplateOutlet]="content" />
   </aside>
 } @else {
-  <button type="button" class="tools-open" (click)="openDialog()">Tools</button>
+  <button
+    type="button"
+    class="tools-open"
+    [disabled]="!ready()"
+    [attr.title]="ready() ? null : 'Available once the slice viewer has loaded an image'"
+    (click)="openDialog()"
+  >Tools</button>
   <dialog #dlg class="tools-dialog" aria-label="Tools" (click)="onDialogClick($event)">
     <div class="sheet">
       <div class="sheet-head">

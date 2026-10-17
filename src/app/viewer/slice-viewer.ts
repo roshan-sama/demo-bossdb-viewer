@@ -11,6 +11,7 @@ import { Lru } from '../lib/lru';
 import { PlanePixels, Stack, joinStacks } from '../lib/plane-pixels';
 import { mapLimit } from '../lib/pool';
 import { EdgeSettings } from './edge-settings';
+import { SliceState } from './slice-state';
 
 const MAX_PARALLEL = 6;
 
@@ -42,7 +43,9 @@ export class SliceViewer {
 
   private readonly api = inject(BossApi);
   private readonly edgeSettings = inject(EdgeSettings);
-  private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('cv');
+  /** Tells the tools panel when an image is on screen (it stays locked until then). */
+  private readonly sliceState = inject(SliceState);
+  private readonly canvas =viewChild.required<ElementRef<HTMLCanvasElement>>('cv');
   private readonly overlayCanvas = viewChild<ElementRef<HTMLCanvasElement>>('ov');
   private readonly edgeCanvas = viewChild<ElementRef<HTMLCanvasElement>>('ed');
 
@@ -105,11 +108,13 @@ export class SliceViewer {
   private timer?: ReturnType<typeof setTimeout>;
 
   constructor() {
-    // A new channel (or coordinate frame) starts at the full-resolution middle of the volume.
+    // A new channel (or coordinate frame) starts at the full-resolution middle of the volume, and the tools
+    // lock again until its first image has been drawn.
     effect(() => {
       const ref = this.ref();
       this.coord();
       untracked(() => {
+        this.sliceState.reset();
         this.level.set(0);
         this.origin.set({ h: null, v: null });
         this.recentre();
@@ -152,6 +157,7 @@ export class SliceViewer {
     inject(DestroyRef).onDestroy(() => {
       clearTimeout(this.timer);
       this.ctl?.abort();
+      this.sliceState.reset();
     });
   }
 
@@ -295,6 +301,7 @@ export class SliceViewer {
       const ctx = cv.getContext('2d');
       if (ctx) ctx.putImageData(new ImageData(img.data, img.width, img.height), 0, 0);
       this.base = img;
+      this.sliceState.publish(img);
       this.paintEdges();
 
       // Show the image at its physical proportions (voxels are rarely cubic in EM data, and coarser

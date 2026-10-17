@@ -110,3 +110,11 @@ input.cell.wide { width: 6rem; }
 .band-no { width: 1.4rem; color: var(--mute); font-size: 0.85rem; text-align: center; }
 input.swatch { width: 2.4rem; height: 1.9rem; padding: 0; background: none; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
 input.swatch:disabled { opacity: 0.4; cursor: default; }
+
+/* Locked until the slice viewer has drawn an image: the tabs are inert, so dim them and explain why. */
+.tools-body[inert] { opacity: 0.45; }
+.hint.locked { margin: 0 0 10px; }
+.tools-open:disabled { opacity: 0.55; cursor: default; box-shadow: none; }
+
+.fourier .hint.first { margin-top: 0; }
+.fourier canvas { margin-top: 10px; background: #000; border-radius: 6px; image-rendering: auto; }
