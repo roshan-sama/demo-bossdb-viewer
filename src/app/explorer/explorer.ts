@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { Overlay } from '../boss/boss.models';
 import { capabilitiesOf } from '../lib/capabilities';
 import { Combobox } from '../ui/combobox';
@@ -23,7 +23,23 @@ export class Explorer {
 
   protected readonly overlay = signal<Overlay | null>(null);
 
+  /** The selection box starts open and folds away once a channel is chosen; the person can reopen it. */
+  protected readonly pickerOpen = signal(true);
+  private readonly channel = computed(() => this.s.sel().h);
+  /** "collection / experiment / channel", shown in the folded header so the choice stays visible. */
+  protected readonly crumb = computed(() => {
+    const { c, e, h } = this.s.sel();
+    return [c, e, h].filter(Boolean).join(' / ');
+  });
+
   constructor() {
+    effect(() => {
+      if (this.channel()) this.pickerOpen.set(false);
+    });
     void this.s.init(typeof location === 'undefined' ? '' : location.hash);
+  }
+
+  protected onPickerToggle(e: Event): void {
+    this.pickerOpen.set((e.target as HTMLDetailsElement).open);
   }
 }
