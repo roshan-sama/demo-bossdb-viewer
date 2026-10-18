@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { SliceState } from '../viewer/slice-state';
+import { WindowSettings } from '../viewer/window-settings';
 import { DESKTOP_QUERY, ToolsPanel } from './tools-panel';
 
 const img = { width: 2, height: 2, data: new Uint8ClampedArray(16) };
@@ -44,6 +45,25 @@ describe('ToolsPanel', () => {
     expect(panel.getAttribute('aria-labelledby')).toBe(tabs[0].id);
     expect(panel.querySelector('app-edge-tools app-edge-editor')).not.toBeNull();
     expect(el.querySelector('app-fourier-analysis')).toBeNull();
+  });
+
+  it('adds an Intensity window tab only while a blosc plane is on screen', () => {
+    stubMedia(true);
+    const { fixture, el } = setup();
+    const labels = () => Array.from(el.querySelectorAll('.tabs [role="tab"]')).map((t) => t.textContent?.trim());
+    expect(labels()).toEqual(['Edge detection', 'Fourier analysis']);
+    const w = TestBed.inject(WindowSettings);
+    w.publish('uint16', { min: 100, max: 4000, auto: { lo: 120, hi: 3900 } });
+    fixture.detectChanges();
+    expect(labels()).toEqual(['Edge detection', 'Fourier analysis', 'Intensity window']);
+    (el.querySelectorAll('.tabs [role="tab"]')[2] as HTMLElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('#tabpanel-window')).not.toBeNull();
+    // Switching to a channel without one falls back to the first tab.
+    w.clear();
+    fixture.detectChanges();
+    expect(el.querySelector('#tabpanel-edges')).not.toBeNull();
+    expect(labels()).toHaveLength(2);
   });
 
   it('opens the Fourier tab next to the edge tab, by click or arrow key', () => {

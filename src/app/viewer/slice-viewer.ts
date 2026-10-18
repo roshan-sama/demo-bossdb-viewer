@@ -2,7 +2,7 @@ import { Component, DestroyRef, ElementRef, computed, effect, inject, input, sig
 import { BossApi } from '../boss/boss-api.service';
 import { ChannelRef, CoordFrame, Overlay, Plane } from '../boss/boss.models';
 import { Axis, PLANE_AXES, Range, Region, centeredWindow, cutoutUrl, extentOf, planeRegionAt, splitForJpeg } from '../boss/cutout';
-import { decodeBlosc, interpretVoxels } from '../lib/blosc';
+import { VoxelArray, decodeBlosc, interpretVoxels } from '../lib/blosc';
 import { SliceFormat } from '../lib/capabilities';
 import { Kernel3, bandLevels, edgesToRgba, imageMagnitudes } from '../lib/edges';
 import { labelText, schemeFor } from '../lib/label-names';
@@ -11,7 +11,8 @@ import { estimateLevel, levelScales, parseDownsample } from '../lib/levels';
 import { Lru } from '../lib/lru';
 import { PlanePixels, Stack, joinStacks } from '../lib/plane-pixels';
 import { mapLimit } from '../lib/pool';
-import { autoWindow, windowToGrey } from '../lib/windowing';
+import { IntensityWindow, PlaneStats, planeStats, windowToGrey } from '../lib/windowing';
+import { WindowSettings } from './window-settings';
 import { EdgeSettings } from './edge-settings';
 import { SliceState } from './slice-state';
 
@@ -36,6 +37,18 @@ interface Loaded {
   cached: boolean;
   /** Extra detail for the status line, such as the intensity window of a blosc image. */
   note: string;
+  /** For blosc images, the voxels behind `img`, so the window can change without a fetch. */
+  plane?: BloscPlane;
+}
+
+/** A decoded blosc plane. The grey picture is made from it on demand, because the window is the viewer's to change. */
+interface BloscPlane {
+  data: VoxelArray;
+  width: number;
+  height: number;
+  stats: PlaneStats;
+  datatype: string;
+  bytes: number;
 }
 
 const middle = (r: Range) => Math.floor((r[0] + r[1]) / 2);
@@ -69,6 +82,7 @@ export class SliceViewer {
   private readonly edgeSettings = inject(EdgeSettings);
   /** Tells the tools panel when an image is on screen (it stays locked until then). */
   private readonly sliceState = inject(SliceState);
+  private readonly windowSettings = inject(WindowSettings);
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('cv');
   private readonly overlayCanvas = viewChild<ElementRef<HTMLCanvasElement>>('ov');
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
@@ -132,8 +146,11 @@ export class SliceViewer {
   protected readonly description = computed(() => this.overlay()?.description ?? '');
 
   private readonly cache = new Lru<Stack>(60);
-  /** Windowed blosc planes by URL. The window comes from the plane itself, so the same URL always gives the same picture. */
-  private readonly bloscCache = new Lru<Omit<Loaded, 'cached'>>(20);
+  /** Decoded blosc planes by URL (raw voxels, so a new window needs no fetch). */
+  private readonly bloscCache = new Lru<BloscPlane>(10);
+  /** The blosc plane on screen, if any, and the status text before its window note. */
+  private bloscPlane?: BloscPlane;
+  private statusHead = '';
   private readonly labelCache = new Lru<LabelPlane>(20);
   private labels?: LabelPlane;
   /** The image currently drawn on the base canvas; the edge layer is derived from it. */
@@ -152,6 +169,8 @@ export class SliceViewer {
       this.coord();
       untracked(() => {
         this.sliceState.reset();
+        this.bloscPlane = undefined;
+        this.windowSettings.clear();
         this.level.set(0);
         this.origin.set({ h: null, v: null });
         this.recentre();
@@ -169,6 +188,12 @@ export class SliceViewer {
       this.format();
       this.datatype();
       untracked(() => this.schedule(0));
+    });
+    // A new window for the blosc plane on screen redraws it from the voxels already loaded.
+    effect(() => {
+      this.windowSettings.mode();
+      this.windowSettings.manual();
+      untracked(() => this.rewindow());
     });
     // Toggling label 0 repaints the labels already loaded.
     effect(() => {
@@ -370,14 +395,10 @@ export class SliceViewer {
       if (id !== this.seq) return;
 
       const { img } = loaded;
-      const cv = this.canvas().nativeElement;
-      cv.width = img.width;
-      cv.height = img.height;
-      const ctx = cv.getContext('2d');
-      if (ctx) ctx.putImageData(new ImageData(img.data, img.width, img.height), 0, 0);
-      this.base = img;
-      this.sliceState.publish(img);
-      this.paintEdges();
+      this.show(img);
+      this.bloscPlane = loaded.plane;
+      if (loaded.plane) this.windowSettings.publish(loaded.plane.datatype, loaded.plane.stats);
+      else this.windowSettings.clear();
 
       // Show the image at its physical proportions (voxels are rarely cubic in EM data, and coarser
       // levels make voxels bigger on the axes they are downsampled along).
@@ -392,8 +413,9 @@ export class SliceViewer {
       const ms = Math.round(performance.now() - t0);
       const kb = loaded.bytes / 1024;
       const reqs = `${loaded.requests} request${loaded.requests > 1 ? 's' : ''}`;
+      this.statusHead = `${img.width}×${img.height} px · ${kb.toFixed(0)} KB · ${ms} ms · ${reqs}${loaded.cached ? ' (cached)' : ''}`;
       this.status.set({
-        text: `${img.width}×${img.height} px · ${kb.toFixed(0)} KB · ${ms} ms · ${reqs}${loaded.cached ? ' (cached)' : ''}${loaded.note ? ` · ${loaded.note}` : ''}`,
+        text: this.statusHead + (loaded.note ? ` · ${loaded.note}` : ''),
         warn: img.width === ew && img.height === eh ? '' : ` · expected ${ew}×${eh}`,
         url: shownUrl,
         error: false,
@@ -433,21 +455,47 @@ export class SliceViewer {
    * 16-bit data, which rarely uses the whole range, would come out nearly black.
    */
   private async loadBlosc(url: string, region: Region, axes: [Axis, Axis], signal: AbortSignal): Promise<Loaded> {
-    const hit = this.bloscCache.get(url);
-    if (hit) return { ...hit, cached: true };
-    const wire = await this.api.blosc(url, signal);
-    const datatype = this.datatype();
-    const { data } = interpretVoxels(await decodeBlosc(wire), datatype, region);
-    const [h, v] = axes;
-    const window = autoWindow(data);
-    const plane = {
-      img: { width: span(region[h]), height: span(region[v]), data: windowToGrey(data, window) },
-      bytes: wire.length,
-      requests: 1,
-      note: `${datatype} window ${shown(window.lo)}–${shown(window.hi)}`,
-    };
-    this.bloscCache.set(url, plane);
-    return { ...plane, cached: false };
+    let plane = this.bloscCache.get(url);
+    const cached = !!plane;
+    if (!plane) {
+      const wire = await this.api.blosc(url, signal);
+      const datatype = this.datatype();
+      const { data } = interpretVoxels(await decodeBlosc(wire), datatype, region);
+      const [h, v] = axes;
+      plane = { data, width: span(region[h]), height: span(region[v]), stats: planeStats(data), datatype, bytes: wire.length };
+      this.bloscCache.set(url, plane);
+    }
+    const window = this.windowSettings.resolve(plane.stats);
+    return { img: this.grey(plane, window), bytes: plane.bytes, requests: 1, cached, note: this.windowNote(plane, window), plane };
+  }
+
+  private grey(p: BloscPlane, w: IntensityWindow): PlanePixels {
+    return { width: p.width, height: p.height, data: windowToGrey(p.data, w) };
+  }
+
+  private windowNote(p: BloscPlane, w: IntensityWindow): string {
+    return `${p.datatype} window ${shown(w.lo)}–${shown(w.hi)}`;
+  }
+
+  /** Redraws the blosc plane on screen with the window now in the settings. */
+  private rewindow(): void {
+    const p = this.bloscPlane;
+    if (!p) return;
+    const w = this.windowSettings.resolve(p.stats);
+    this.show(this.grey(p, w));
+    this.status.update((s) => ({ ...s, text: `${this.statusHead} · ${this.windowNote(p, w)}` }));
+  }
+
+  /** Puts an image on the base canvas and hands it to the edge layer and the tools. */
+  private show(img: PlanePixels): void {
+    const cv = this.canvas().nativeElement;
+    cv.width = img.width;
+    cv.height = img.height;
+    const ctx = cv.getContext('2d');
+    if (ctx) ctx.putImageData(new ImageData(img.data, img.width, img.height), 0, 0);
+    this.base = img;
+    this.sliceState.publish(img);
+    this.paintEdges();
   }
 
   /** Fetches the label plane as blosc (one request, any plane) and paints it over the image. */

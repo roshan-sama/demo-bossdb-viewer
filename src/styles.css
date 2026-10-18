@@ -138,3 +138,7 @@ input.swatch:disabled { opacity: 0.4; cursor: default; }
 
 .fourier .hint.first { margin-top: 0; }
 .fourier canvas { margin-top: 10px; background: #000; border-radius: 6px; image-rendering: auto; }
+
+.window-tools .hint.first { margin-top: 0; }
+.window-tools .modes { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; }
+.window-tools .window-facts { margin-top: 10px; }

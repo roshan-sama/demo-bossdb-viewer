@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { BossApi } from '../boss/boss-api.service';
 import { CoordFrame } from '../boss/boss.models';
 import { SliceState } from './slice-state';
+import { WindowSettings } from './window-settings';
 import { SliceViewer } from './slice-viewer';
 
 const coord = {
@@ -98,6 +99,11 @@ describe('SliceViewer', () => {
       expect(dlg.classList).toContain('contain');
       expect(btn(el, 'Fill screen')).toBeTruthy();
     });
+  });
+
+  it('offers no intensity window for a JPEG image', async () => {
+    await setup();
+    expect(TestBed.inject(WindowSettings).info()).toBeNull();
   });
 
   it('requests a centred XY slice at the middle of the volume', async () => {
@@ -366,6 +372,35 @@ describe('SliceViewer with a blosc image (channels the Boss will not serve as JP
     fixture.detectChanges();
     expect(el.querySelector('canvas.edges')).not.toBeNull();
     expect(blosc).toHaveLength(1);
+  });
+
+  it('offers the plane to the window tools and redraws from the same voxels when the window changes', async () => {
+    const fixture = await setup();
+    const w = TestBed.inject(WindowSettings);
+    expect(w.info()).toMatchObject({ datatype: 'uint16', min: 100, max: 4000 });
+    w.setMode('manual');
+    w.setManual('lo', 0);
+    w.setManual('hi', 8000);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const img = TestBed.inject(SliceState).image()!;
+    // 100 and 4000 on a 0-8000 window are about 3 and 128, rather than the 0 and 255 of the automatic window.
+    expect(img.data[0]).toBe(3);
+    expect(img.data[img.data.length - 4]).toBe(128);
+    expect(blosc).toHaveLength(1);
+    expect(meta(fixture)).toContain('uint16 window 0–8,000');
+  });
+
+  it('keeps the chosen window when another plane is drawn', async () => {
+    const fixture = await setup();
+    const w = TestBed.inject(WindowSettings);
+    w.setMode('manual');
+    w.setManual('lo', 0);
+    w.setManual('hi', 8000);
+    plane(fixture, 'XZ').click();
+    await tick();
+    await fixture.whenStable();
+    expect(TestBed.inject(SliceState).image()!.data[0]).toBe(3);
   });
 
   it('shows a readable error for a datatype it cannot read', async () => {

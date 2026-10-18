@@ -91,3 +91,40 @@ export function windowToGrey(data: VoxelArray, window: IntensityWindow): Uint8Cl
   }
   return out;
 }
+
+/** How the window is chosen: from the plane's own spread, from every value in it, or by hand. */
+export type WindowMode = 'auto' | 'full' | 'manual';
+
+/** What a plane of voxels holds: its smallest and largest value, and the automatic window. */
+export interface PlaneStats {
+  min: number;
+  max: number;
+  auto: IntensityWindow;
+}
+
+export function planeStats(data: VoxelArray): PlaneStats {
+  let min = Infinity;
+  let max = -Infinity;
+  for (let i = 0; i < data.length; i++) {
+    const v = Number(data[i]);
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  if (!data.length) min = max = 0;
+  return { min, max, auto: autoWindow(data) };
+}
+
+/** The largest value a datatype can hold (uint64 is approximate, as Number cannot be exact there). */
+export function datatypeLimit(datatype: string): number {
+  return datatype === 'uint8' ? 255 : datatype === 'uint16' ? 65535 : 2 ** 64 - 1;
+}
+
+/**
+ * The window for a mode. `full` shows every value in the plane, so nothing clips; `manual` is whatever was typed,
+ * kept at least one value wide so the grey scale never divides by zero.
+ */
+export function resolveWindow(mode: WindowMode, stats: PlaneStats, manual: IntensityWindow): IntensityWindow {
+  if (mode === 'auto') return stats.auto;
+  if (mode === 'full') return { lo: stats.min, hi: stats.max > stats.min ? stats.max : stats.min + 1 };
+  return { lo: manual.lo, hi: manual.hi > manual.lo ? manual.hi : manual.lo + 1 };
+}

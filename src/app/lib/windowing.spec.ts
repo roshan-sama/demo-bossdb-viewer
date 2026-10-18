@@ -1,4 +1,4 @@
-import { autoWindow, windowToGrey } from './windowing';
+import { autoWindow, datatypeLimit, planeStats, resolveWindow, windowToGrey } from './windowing';
 
 const ramp = (n: number, from: number) => Uint16Array.from({ length: n }, (_, i) => from + i);
 
@@ -85,5 +85,32 @@ describe('windowToGrey', () => {
     expect(Math.min(...values)).toBe(0);
     expect(Math.max(...values)).toBe(255);
     expect(data[999] >> 8).toBeLessThan(12);
+  });
+});
+
+describe('planeStats and resolveWindow', () => {
+  const stats = planeStats(Uint16Array.from([500, 700, 900, 65000]));
+
+  it('reports the smallest and largest value and the automatic window', () => {
+    expect([stats.min, stats.max]).toEqual([500, 65000]);
+    expect(stats.auto.lo).toBeGreaterThanOrEqual(500);
+  });
+
+  it('shows every value, so nothing clips, in whole-range mode', () => {
+    expect(resolveWindow('full', stats, { lo: 0, hi: 1 })).toEqual({ lo: 500, hi: 65000 });
+  });
+
+  it('uses the typed window in manual mode and keeps it at least one value wide', () => {
+    expect(resolveWindow('manual', stats, { lo: 100, hi: 2000 })).toEqual({ lo: 100, hi: 2000 });
+    expect(resolveWindow('manual', stats, { lo: 300, hi: 300 })).toEqual({ lo: 300, hi: 301 });
+  });
+
+  it('uses the automatic window in auto mode and copes with a flat plane', () => {
+    expect(resolveWindow('auto', stats, { lo: 0, hi: 1 })).toBe(stats.auto);
+    expect(resolveWindow('full', planeStats(Uint8Array.from([7, 7])), { lo: 0, hi: 1 })).toEqual({ lo: 7, hi: 8 });
+  });
+
+  it('knows the largest value of each datatype', () => {
+    expect([datatypeLimit('uint8'), datatypeLimit('uint16')]).toEqual([255, 65535]);
   });
 });
