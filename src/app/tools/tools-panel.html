@@ -1,6 +1,6 @@
 <ng-template #content>
   <div class="tabs" role="tablist" aria-label="Tools">
-    @for (t of tabs; track t.id; let i = $index) {
+    @for (t of tabs(); track t.id; let i = $index) {
       <button
         type="button"
         role="tab"
@@ -8,7 +8,7 @@
         [attr.aria-selected]="t.id === active()"
         [attr.aria-controls]="'tabpanel-' + t.id"
         [tabindex]="t.id === active() ? 0 : -1"
-        (click)="active.set(t.id)"
+        (click)="select(t.id)"
         (keydown)="onTabKey($event, i)"
       >{{ t.label }}</button>
     }
@@ -16,6 +16,11 @@
   @if (active() === 'edges') {
     <div role="tabpanel" id="tabpanel-edges" aria-labelledby="tab-edges">
       <app-edge-tools />
+    </div>
+  }
+  @if (active() === 'window') {
+    <div role="tabpanel" id="tabpanel-window" aria-labelledby="tab-window">
+      <app-window-tools />
     </div>
   }
   @if (active() === 'fourier') {

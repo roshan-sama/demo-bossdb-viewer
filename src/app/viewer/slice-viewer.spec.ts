@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { BossApi } from '../boss/boss-api.service';
 import { CoordFrame } from '../boss/boss.models';
 import { SliceState } from './slice-state';
+import { WindowSettings } from './window-settings';
 import { SliceViewer } from './slice-viewer';
 
 const coord = {
@@ -98,6 +99,11 @@ describe('SliceViewer', () => {
       expect(dlg.classList).toContain('contain');
       expect(btn(el, 'Fill screen')).toBeTruthy();
     });
+  });
+
+  it('offers no intensity window for a JPEG image', async () => {
+    await setup();
+    expect(TestBed.inject(WindowSettings).info()).toBeNull();
   });
 
   it('requests a centred XY slice at the middle of the volume', async () => {
@@ -251,5 +257,155 @@ describe('SliceViewer', () => {
     await fixture.whenStable();
     await tick();
     expect(state.ready()).toBe(true);
+  });
+});
+
+/** A blosc buffer holding `raw` stored uncompressed (the memcpy flag), which is how Blosc stores data it cannot shrink. */
+function bloscBuffer(raw: Uint8Array, typesize: number): Uint8Array {
+  const buf = new Uint8Array(16 + raw.length);
+  const dv = new DataView(buf.buffer);
+  buf.set([2, 1, 0x02, typesize]);
+  dv.setUint32(4, raw.length, true);
+  dv.setUint32(8, raw.length, true);
+  dv.setUint32(12, 16 + raw.length, true);
+  buf.set(raw, 16);
+  return buf;
+}
+
+describe('SliceViewer with a blosc image (channels the Boss will not serve as JPEG)', () => {
+  const blosc: string[] = [];
+  const jpeg: string[] = [];
+
+  beforeEach(() => {
+    blosc.length = 0;
+    jpeg.length = 0;
+    const api = {
+      base: 'https://api.bossdb.io/v1/',
+      downsample: () => Promise.reject(new Error('HTTP 404')),
+      stack: (url: string) => {
+        jpeg.push(url);
+        return Promise.reject(new Error('The Boss serves no JPEG for this channel'));
+      },
+      // A uint16 plane whose first half is 100 and second half is 4000: a low-range image, as 16-bit data usually is.
+      blosc: (url: string) => {
+        blosc.push(url);
+        const [x0, x1, y0, y1, z0, z1] = (url.match(/(\d+):(\d+)/g) ?? []).flatMap((r) => r.split(':').map(Number));
+        const n = (x1 - x0) * (y1 - y0) * (z1 - z0);
+        const raw = new Uint16Array(n).fill(4000).fill(100, 0, n / 2);
+        return Promise.resolve(bloscBuffer(new Uint8Array(raw.buffer), 2));
+      },
+    };
+    TestBed.configureTestingModule({ providers: [{ provide: BossApi, useValue: api }] });
+  });
+
+  async function setup(datatype = 'uint16') {
+    const fixture = TestBed.createComponent(SliceViewer);
+    fixture.componentRef.setInput('ref', { collection: 'c', experiment: 'e', channel: 'h' });
+    fixture.componentRef.setInput('coord', coord);
+    fixture.componentRef.setInput('format', 'blosc');
+    fixture.componentRef.setInput('datatype', datatype);
+    await fixture.whenStable();
+    await tick();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  const plane = (fixture: { nativeElement: unknown }, name: string) =>
+    Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).find((b) => b.textContent?.trim() === name)!;
+  const meta = (fixture: { nativeElement: unknown }) => (fixture.nativeElement as HTMLElement).querySelector('.meta')?.textContent ?? '';
+
+  it('fetches the centred plane as a single blosc request and makes no JPEG request', async () => {
+    await setup();
+    expect(blosc).toEqual(['https://api.bossdb.io/v1/cutout/c/e/h/0/244:756/144:656/50:51/0:1/']);
+    expect(jpeg).toEqual([]);
+  });
+
+  it('windows the 16-bit values to grey, so a low-range image still uses black to white', async () => {
+    await setup();
+    const img = TestBed.inject(SliceState).image()!;
+    expect([img.width, img.height]).toEqual([512, 512]);
+    // A plain 16-to-8-bit shift would give 0 and 15 here, which is nearly black.
+    expect(Array.from(img.data.slice(0, 4))).toEqual([0, 0, 0, 255]);
+    expect(Array.from(img.data.slice(-4))).toEqual([255, 255, 255, 255]);
+  });
+
+  it('reports the size, the single request and the intensity window in the status line', async () => {
+    const fixture = await setup();
+    const text = meta(fixture);
+    expect(text).toContain('512×512 px');
+    expect(text).toContain('1 request');
+    expect(text).toContain('uint16 window 100–4,000');
+    expect(text).toContain('/cutout/c/e/h/0/244:756/144:656/50:51/0:1/');
+  });
+
+  it('draws a YZ plane from one request, with the y axis across and z down', async () => {
+    const fixture = await setup();
+    plane(fixture, 'YZ').click();
+    await tick();
+    await fixture.whenStable();
+    expect(blosc.at(-1)).toBe('https://api.bossdb.io/v1/cutout/c/e/h/0/500:501/144:656/0:100/0:1/');
+    expect(blosc).toHaveLength(2); // JPEG would have needed 4 requests here
+    const img = TestBed.inject(SliceState).image()!;
+    expect([img.width, img.height]).toEqual([512, 100]);
+  });
+
+  it('does not fetch a plane again when it is shown a second time', async () => {
+    const fixture = await setup();
+    plane(fixture, 'XZ').click();
+    await tick();
+    plane(fixture, 'XY').click();
+    await tick();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(blosc).toHaveLength(2);
+    expect(meta(fixture)).toContain('(cached)');
+  });
+
+  it('adds an edge layer without any further request', async () => {
+    const fixture = await setup();
+    const el = fixture.nativeElement as HTMLElement;
+    const toggle = Array.from(el.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')).find((i) => i.parentElement?.textContent?.includes('Edges'))!;
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.querySelector('canvas.edges')).not.toBeNull();
+    expect(blosc).toHaveLength(1);
+  });
+
+  it('offers the plane to the window tools and redraws from the same voxels when the window changes', async () => {
+    const fixture = await setup();
+    const w = TestBed.inject(WindowSettings);
+    expect(w.info()).toMatchObject({ datatype: 'uint16', min: 100, max: 4000 });
+    w.setMode('manual');
+    w.setManual('lo', 0);
+    w.setManual('hi', 8000);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const img = TestBed.inject(SliceState).image()!;
+    // 100 and 4000 on a 0-8000 window are about 3 and 128, rather than the 0 and 255 of the automatic window.
+    expect(img.data[0]).toBe(3);
+    expect(img.data[img.data.length - 4]).toBe(128);
+    expect(blosc).toHaveLength(1);
+    expect(meta(fixture)).toContain('uint16 window 0–8,000');
+  });
+
+  it('keeps the chosen window when another plane is drawn', async () => {
+    const fixture = await setup();
+    const w = TestBed.inject(WindowSettings);
+    w.setMode('manual');
+    w.setManual('lo', 0);
+    w.setManual('hi', 8000);
+    plane(fixture, 'XZ').click();
+    await tick();
+    await fixture.whenStable();
+    expect(TestBed.inject(SliceState).image()!.data[0]).toBe(3);
+  });
+
+  it('shows a readable error for a datatype it cannot read', async () => {
+    const fixture = await setup('float32');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.meta.err')?.textContent).toContain('Unsupported datatype "float32"');
+    expect(TestBed.inject(SliceState).ready()).toBe(false);
   });
 });

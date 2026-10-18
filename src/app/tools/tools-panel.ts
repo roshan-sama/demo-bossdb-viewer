@@ -1,9 +1,11 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, DestroyRef, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { SliceState } from '../viewer/slice-state';
+import { WindowSettings } from '../viewer/window-settings';
 import { EdgeTools } from './edge-tools';
 import { FourierAnalysis } from './fourier-analysis';
 import { tabKeyTarget } from './tab-nav';
+import { WindowTools } from './window-tools';
 
 /** Wide enough for the sidebar beside the 640px column. Keep in step with the `.layout` rule in styles.css. */
 export const DESKTOP_QUERY = '(min-width: 1024px)';
@@ -20,16 +22,26 @@ interface Tab {
  */
 @Component({
   selector: 'app-tools-panel',
-  imports: [NgTemplateOutlet, EdgeTools, FourierAnalysis],
+  imports: [NgTemplateOutlet, EdgeTools, FourierAnalysis, WindowTools],
   templateUrl: './tools-panel.html',
 })
 export class ToolsPanel {
-  /** Edge detection comes first; further tabs go after it. */
-  protected readonly tabs: Tab[] = [
+  private readonly windowSettings = inject(WindowSettings);
+  /** Edge detection comes first; further tabs go after it. The intensity window only exists for blosc images. */
+  protected readonly tabs = computed<Tab[]>(() => [
     { id: 'edges', label: 'Edge detection' },
     { id: 'fourier', label: 'Fourier analysis' },
-  ];
-  protected readonly active = signal(this.tabs[0].id);
+    ...(this.windowSettings.info() ? [{ id: 'window', label: 'Intensity window' }] : []),
+  ]);
+  private readonly chosen = signal('edges');
+  /** The tab on show: the chosen one, or the first when it is not offered for this channel. */
+  protected readonly active = computed(() => {
+    const tabs = this.tabs();
+    return tabs.some((t) => t.id === this.chosen()) ? this.chosen() : tabs[0].id;
+  });
+  protected select(id: string): void {
+    this.chosen.set(id);
+  }
   protected readonly desktop = signal(true);
   /** True once the slice viewer has an image on screen. */
   protected readonly ready = inject(SliceState).ready;
@@ -67,10 +79,11 @@ export class ToolsPanel {
 
   /** Arrow keys move between tabs, as in the ARIA tabs pattern. */
   protected onTabKey(e: KeyboardEvent, i: number): void {
-    const next = tabKeyTarget(e.key, i, this.tabs.length);
+    const tabs = this.tabs();
+    const next = tabKeyTarget(e.key, i, tabs.length);
     if (next < 0) return;
     e.preventDefault();
-    this.active.set(this.tabs[next].id);
-    queueMicrotask(() => document.getElementById('tab-' + this.tabs[next].id)?.focus());
+    this.chosen.set(tabs[next].id);
+    queueMicrotask(() => document.getElementById('tab-' + tabs[next].id)?.focus());
   }
 }

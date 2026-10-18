@@ -1,0 +1,39 @@
+@if (w.info(); as info) {
+  <div class="window-tools">
+    <p class="hint first">
+      Choose which range of {{ info.datatype }} values is drawn from black to white. This changes the image only; the
+      voxels are not altered.
+    </p>
+    <div class="modes" role="radiogroup" aria-label="Window mode">
+      @for (m of modes; track m.id) {
+        <label class="inline">
+          <input type="radio" name="window-mode" [value]="m.id" [checked]="w.mode() === m.id" (change)="onMode(m.id)" /> {{ m.label }}
+        </label>
+      }
+    </div>
+    @for (m of modes; track m.id) {
+      @if (m.id === w.mode()) {
+        <p class="hint">{{ m.hint }}</p>
+      }
+    }
+    <dl class="window-facts">
+      <dt>This plane holds</dt>
+      <dd>{{ info.min.toLocaleString('en-US') }} – {{ info.max.toLocaleString('en-US') }}</dd>
+      <dt>Showing</dt>
+      <dd>{{ w.applied()!.lo.toLocaleString('en-US', { maximumFractionDigits: 0 }) }} – {{ w.applied()!.hi.toLocaleString('en-US', { maximumFractionDigits: 0 }) }}</dd>
+    </dl>
+    @if (w.mode() === 'manual') {
+      <div class="bar">
+        <label class="inline">Black at <input type="number" class="cell wide" aria-label="Black point" [min]="0" [max]="info.limit" [value]="w.manual().lo" (change)="onEnd('lo', $event)" /></label>
+        <input type="range" aria-label="Black point slider" [min]="info.min" [max]="info.max" [step]="step()" [value]="w.manual().lo" (input)="onEnd('lo', $event)" />
+      </div>
+      <div class="bar">
+        <label class="inline">White at <input type="number" class="cell wide" aria-label="White point" [min]="0" [max]="info.limit" [value]="w.manual().hi" (change)="onEnd('hi', $event)" /></label>
+        <input type="range" aria-label="White point slider" [min]="info.min" [max]="info.max" [step]="step()" [value]="w.manual().hi" (input)="onEnd('hi', $event)" />
+      </div>
+    }
+    @if (w.mode() !== 'auto') {
+      <div class="bar"><button type="button" (click)="w.reset()">Reset to auto</button></div>
+    }
+  </div>
+}

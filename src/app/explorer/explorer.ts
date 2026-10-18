@@ -1,6 +1,6 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { Overlay } from '../boss/boss.models';
-import { capabilitiesOf } from '../lib/capabilities';
+import { capabilitiesOf, sliceFormatOf } from '../lib/capabilities';
 import { Combobox } from '../ui/combobox';
 import { BloscDebug } from '../viewer/blosc-debug';
 import { OverlayPicker } from '../viewer/overlay-picker';
@@ -20,6 +20,10 @@ export class Explorer {
 
   /** Which viewers can show the selected channel (derived from its type and datatype). */
   protected readonly caps = computed(() => capabilitiesOf(this.s.info().chan));
+  /** How the slice viewer fetches this channel (JPEG, or blosc when JPEG is not served), or null when it cannot show it. */
+  protected readonly sliceFormat = computed(() => sliceFormatOf(this.s.info().chan));
+  protected readonly datatype = computed(() => this.s.info().chan?.datatype?.toLowerCase() ?? '');
+  protected readonly isAnnotation = computed(() => this.s.info().chan?.type?.toLowerCase() === 'annotation');
 
   protected readonly overlay = signal<Overlay | null>(null);
 
