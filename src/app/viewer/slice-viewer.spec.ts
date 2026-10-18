@@ -56,6 +56,50 @@ describe('SliceViewer', () => {
     return fixture;
   }
 
+  describe('fullscreen', () => {
+    const btn = (el: HTMLElement, text: string) =>
+      [...el.querySelectorAll('button')].find((b) => b.textContent?.trim() === text) as HTMLButtonElement;
+
+    it('moves the image into a modal dialog and back again', async () => {
+      const fixture = await setup();
+      const el = fixture.nativeElement as HTMLElement;
+      const dlg = el.querySelector('dialog.fullscreen') as HTMLDialogElement;
+      const frame = el.querySelector('.frame') as HTMLElement;
+      expect(frame.parentElement?.classList).toContain('frame-host');
+
+      btn(el, 'Fullscreen').click();
+      expect(dlg.open).toBe(true);
+      expect(frame.parentElement?.classList).toContain('fs-stage');
+      expect(dlg.contains(el.querySelector('canvas'))).toBe(true);
+
+      btn(el, 'Close').click();
+      await tick();
+      expect(dlg.open).toBe(false);
+      expect(frame.parentElement?.classList).toContain('frame-host');
+    });
+
+    it('returns the image when the dialog is closed another way, such as Escape', async () => {
+      const fixture = await setup();
+      const el = fixture.nativeElement as HTMLElement;
+      btn(el, 'Fullscreen').click();
+      // jsdom has no dialog.close(); the browser fires `close` on Escape.
+      (el.querySelector('dialog.fullscreen') as HTMLDialogElement).dispatchEvent(new Event('close'));
+      await tick();
+      expect((el.querySelector('.frame') as HTMLElement).parentElement?.classList).toContain('frame-host');
+    });
+
+    it('fills the screen by default and can switch to showing the whole image', async () => {
+      const fixture = await setup();
+      const el = fixture.nativeElement as HTMLElement;
+      const dlg = el.querySelector('dialog.fullscreen') as HTMLElement;
+      expect(dlg.classList).not.toContain('contain');
+      btn(el, 'Show whole image').click();
+      fixture.detectChanges();
+      expect(dlg.classList).toContain('contain');
+      expect(btn(el, 'Fill screen')).toBeTruthy();
+    });
+  });
+
   it('requests a centred XY slice at the middle of the volume', async () => {
     await setup();
     expect(urls).toEqual(['https://api.bossdb.io/v1/cutout/c/e/h/0/244:756/144:656/50:51/']);

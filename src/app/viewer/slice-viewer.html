@@ -66,8 +66,10 @@
     @if (showEdges()) {
       <input type="range" min="0" max="1" step="0.05" [value]="edgeOpacity()" aria-label="Edge opacity" (input)="onEdgeOpacity($event)" />
     }
+    <button type="button" class="push" (click)="openFullscreen()">Fullscreen</button>
   </div>
-  <div class="frame">
+  <div class="frame-host" #host>
+  <div class="frame" #frame [style.--ratio]="ratio()">
     <canvas #cv width="4" height="4" [style.aspect-ratio]="aspect()"></canvas>
     @if (overlay()) {
       <canvas
@@ -85,6 +87,14 @@
       <canvas #ed class="overlay edges" width="4" height="4" [style.opacity]="edgeOpacity()" aria-label="Edge overlay"></canvas>
     }
   </div>
+  </div>
+  <dialog #fs class="fullscreen" [class.contain]="fit() === 'contain'" aria-label="Slice viewer, fullscreen" (click)="onFullscreenClick($event)" (close)="onFullscreenClosed()">
+    <div class="fs-stage" #stage></div>
+    <div class="fs-controls">
+      <button type="button" (click)="toggleFit()">{{ fit() === 'cover' ? 'Show whole image' : 'Fill screen' }}</button>
+      <button type="button" (click)="closeFullscreen()">Close</button>
+    </div>
+  </dialog>
   <div class="meta" [class.err]="status().error">
     {{ status().text }}<span class="err">{{ status().warn }}</span><br />{{ status().url }}
   </div>

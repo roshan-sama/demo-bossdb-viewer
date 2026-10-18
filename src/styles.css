@@ -60,6 +60,16 @@ select { font: inherit; color: var(--fg); background: var(--bg); border: 1px sol
 .frame canvas.overlay { position: absolute; inset: 0; height: 100%; }
 /* The edge layer sits on top of the labels but lets the pointer through so label hover still works. */
 .frame canvas.edges { pointer-events: none; }
+button.push { margin-left: auto; }
+/* Fullscreen: the frame moves into this dialog. The stage is a size container so the frame can be sized
+   from its aspect ratio: max() covers the screen (cropping), min() fits the whole image. */
+dialog.fullscreen { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: #000; overflow: hidden; }
+dialog.fullscreen::backdrop { background: #000; }
+.fs-stage { position: absolute; inset: 0; overflow: hidden; container-type: size; }
+dialog.fullscreen .frame { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0; border-radius: 0; width: max(100cqw, 100cqh * var(--ratio, 1)); }
+dialog.fullscreen.contain .frame { width: min(100cqw, 100cqh * var(--ratio, 1)); }
+.fs-controls { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; display: flex; gap: 8px; }
+.fs-controls button { margin: 0; padding: 6px 14px; background: rgba(0, 0, 0, 0.6); color: #fff; border-color: rgba(255, 255, 255, 0.4); }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; font-size: 0.85rem; }
 .legend .chip { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
