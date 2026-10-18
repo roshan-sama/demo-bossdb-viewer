@@ -47,7 +47,7 @@
 }
 </details>
 @if (s.target(); as t) {
-  @if (caps().jpeg) {
+  @if (sliceFormat(); as format) {
     <app-overlay-picker [collection]="t.ref.collection" [frame]="s.info().exp?.coord_frame" (chosen)="overlay.set($event)" />
     <app-slice-viewer
       [ref]="t.ref"
@@ -55,13 +55,27 @@
       [overlay]="overlay()"
       [levels]="s.info().exp?.num_hierarchy_levels ?? 1"
       [hierarchy]="s.info().exp?.hierarchy_method"
+      [format]="format"
+      [datatype]="datatype()"
     />
-    <app-volume-viewer [ref]="t.ref" [coord]="t.coord" />
+    @if (caps().jpeg) {
+      <app-volume-viewer [ref]="t.ref" [coord]="t.coord" />
+    } @else {
+      <section class="card">
+        <div class="meta prose">
+          The 3D viewer uses JPEG cutouts, which the Boss serves only for uint8 image channels, so only the slice viewer
+          is available for this {{ s.info().chan?.type ?? 'unknown type' }} / {{ s.info().chan?.datatype ?? 'unknown datatype' }} channel.
+        </div>
+      </section>
+    }
   } @else {
     <section class="card">
-      <div class="meta">
-        The slice and 3D viewers use JPEG cutouts, which the Boss serves only for uint8 image channels.
+      <div class="meta prose">
+        The viewers draw image channels (uint8 as JPEG, other datatypes as blosc).
         This channel is {{ s.info().chan?.type ?? 'unknown type' }} / {{ s.info().chan?.datatype ?? 'unknown datatype' }}.
+        @if (isAnnotation()) {
+          To see an annotation channel, open an image channel from the same collection and pick this one under Label overlay.
+        }
       </div>
     </section>
   }

@@ -3,6 +3,7 @@ import { BossApi } from '../boss/boss-api.service';
 import { ChannelRef, CoordFrame, Overlay, Plane } from '../boss/boss.models';
 import { Axis, PLANE_AXES, Range, Region, centeredWindow, cutoutUrl, extentOf, planeRegionAt, splitForJpeg } from '../boss/cutout';
 import { decodeBlosc, interpretVoxels } from '../lib/blosc';
+import { SliceFormat } from '../lib/capabilities';
 import { Kernel3, bandLevels, edgesToRgba, imageMagnitudes } from '../lib/edges';
 import { labelText, schemeFor } from '../lib/label-names';
 import { LabelData, labelColor, labelCounts, labelsToRgba } from '../lib/labels';
@@ -10,6 +11,7 @@ import { estimateLevel, levelScales, parseDownsample } from '../lib/levels';
 import { Lru } from '../lib/lru';
 import { PlanePixels, Stack, joinStacks } from '../lib/plane-pixels';
 import { mapLimit } from '../lib/pool';
+import { autoWindow, windowToGrey } from '../lib/windowing';
 import { EdgeSettings } from './edge-settings';
 import { SliceState } from './slice-state';
 
@@ -24,9 +26,27 @@ interface LabelPlane {
   axes: [Axis, Axis];
 }
 
-const middle = (r: Range) => Math.floor((r[0] + r[1]) / 2);
+/** The base image for one draw, however it was fetched. */
+interface Loaded {
+  img: PlanePixels;
+  /** Bytes on the wire (compressed). */
+  bytes: number;
+  requests: number;
+  /** True when nothing had to be fetched. */
+  cached: boolean;
+  /** Extra detail for the status line, such as the intensity window of a blosc image. */
+  note: string;
+}
 
-/** Draws one JPEG cutout at a time to a canvas; debounces the slider and cancels superseded requests. */
+const middle = (r: Range) => Math.floor((r[0] + r[1]) / 2);
+const span = (r: Range) => r[1] - r[0];
+/** Window ends are voxel values: whole numbers for integer data, so drop any fractional noise from binning. */
+const shown = (n: number) => Math.round(n).toLocaleString('en-US');
+
+/**
+ * Draws one cutout at a time to a canvas; debounces the slider and cancels superseded requests. uint8 images are
+ * fetched as JPEG; other image channels, which the Boss will not serve as JPEG, are fetched as blosc.
+ */
 @Component({
   selector: 'app-slice-viewer',
   templateUrl: './slice-viewer.html',
@@ -40,12 +60,16 @@ export class SliceViewer {
   readonly levels = input(1);
   /** The experiment's hierarchy method, used to estimate level sizes if the server's cannot be read. */
   readonly hierarchy = input<string | undefined>();
+  /** How to fetch the image: JPEG for uint8 channels (the default), otherwise blosc. */
+  readonly format = input<SliceFormat>('jpeg');
+  /** The channel's datatype, lower case. Only blosc needs it, to read the voxels. */
+  readonly datatype = input('');
 
   private readonly api = inject(BossApi);
   private readonly edgeSettings = inject(EdgeSettings);
   /** Tells the tools panel when an image is on screen (it stays locked until then). */
   private readonly sliceState = inject(SliceState);
-  private readonly canvas =viewChild.required<ElementRef<HTMLCanvasElement>>('cv');
+  private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('cv');
   private readonly overlayCanvas = viewChild<ElementRef<HTMLCanvasElement>>('ov');
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
   private readonly frame = viewChild.required<ElementRef<HTMLElement>>('frame');
@@ -108,6 +132,8 @@ export class SliceViewer {
   protected readonly description = computed(() => this.overlay()?.description ?? '');
 
   private readonly cache = new Lru<Stack>(60);
+  /** Windowed blosc planes by URL. The window comes from the plane itself, so the same URL always gives the same picture. */
+  private readonly bloscCache = new Lru<Omit<Loaded, 'cached'>>(20);
   private readonly labelCache = new Lru<LabelPlane>(20);
   private labels?: LabelPlane;
   /** The image currently drawn on the base canvas; the edge layer is derived from it. */
@@ -136,6 +162,12 @@ export class SliceViewer {
     // Choosing or clearing an overlay redraws; the base image comes from the cache.
     effect(() => {
       this.overlay();
+      untracked(() => this.schedule(0));
+    });
+    // A different way of fetching the image means a different picture.
+    effect(() => {
+      this.format();
+      this.datatype();
       untracked(() => this.schedule(0));
     });
     // Toggling label 0 repaints the labels already loaded.
@@ -317,31 +349,27 @@ export class SliceViewer {
     const [h, v, f] = PLANE_AXES[plane];
     const fixed = Math.min(Math.max(this.pos()[f], ext[f][0]), ext[f][1] - 1);
     const region = planeRegionAt(ext, plane, fixed, this.size(), this.origin());
-    // A YZ plane stacks Y*Z rows into one JPEG, so tall requests are split along z (see splitForJpeg).
-    const chunks = splitForJpeg(region).map((r) => cutoutUrl(this.api.base, this.ref(), level, r));
+    // Blosc is one request for any plane. A YZ plane stacks Y*Z rows into one JPEG, so tall JPEG requests
+    // are split along z (see splitForJpeg).
+    const blosc = this.format() === 'blosc';
+    const chunks = blosc
+      ? [cutoutUrl(this.api.base, this.ref(), level, region, [0, 1])]
+      : splitForJpeg(region).map((r) => cutoutUrl(this.api.base, this.ref(), level, r));
     const shownUrl = chunks.length > 1 ? `${chunks[0]} (+${chunks.length - 1} more)` : chunks[0];
 
     const id = ++this.seq;
     this.ctl?.abort();
     const ctl = (this.ctl = new AbortController());
     const t0 = performance.now();
-    let cached = 0;
     this.status.set({ text: 'Loading…', warn: '', url: shownUrl, error: false });
 
     try {
-      const stacks = await mapLimit(chunks, MAX_PARALLEL, async (url) => {
-        const hit = this.cache.get(url);
-        if (hit) {
-          cached++;
-          return hit;
-        }
-        const s = await this.api.stack(url, ctl.signal);
-        this.cache.set(url, s);
-        return s;
-      });
+      const loaded = blosc
+        ? await this.loadBlosc(chunks[0], region, [h, v], ctl.signal)
+        : await this.loadJpeg(chunks, region, ctl.signal);
       if (id !== this.seq) return;
 
-      const img = joinStacks(stacks, region);
+      const { img } = loaded;
       const cv = this.canvas().nativeElement;
       cv.width = img.width;
       cv.height = img.height;
@@ -362,10 +390,10 @@ export class SliceViewer {
       const ew = region[h][1] - region[h][0];
       const eh = region[v][1] - region[v][0];
       const ms = Math.round(performance.now() - t0);
-      const kb = stacks.reduce((n, s) => n + s.bytes, 0) / 1024;
-      const reqs = `${chunks.length} request${chunks.length > 1 ? 's' : ''}`;
+      const kb = loaded.bytes / 1024;
+      const reqs = `${loaded.requests} request${loaded.requests > 1 ? 's' : ''}`;
       this.status.set({
-        text: `${img.width}×${img.height} px · ${kb.toFixed(0)} KB · ${ms} ms · ${reqs}${cached === chunks.length ? ' (cached)' : ''}`,
+        text: `${img.width}×${img.height} px · ${kb.toFixed(0)} KB · ${ms} ms · ${reqs}${loaded.cached ? ' (cached)' : ''}${loaded.note ? ` · ${loaded.note}` : ''}`,
         warn: img.width === ew && img.height === eh ? '' : ` · expected ${ew}×${eh}`,
         url: shownUrl,
         error: false,
@@ -374,6 +402,52 @@ export class SliceViewer {
       if ((err as Error).name === 'AbortError' || id !== this.seq) return;
       this.status.set({ text: (err as Error).message, warn: '', url: shownUrl, error: true });
     }
+  }
+
+  /** Fetches and joins the JPEG stacks for a region. */
+  private async loadJpeg(urls: string[], region: Region, signal: AbortSignal): Promise<Loaded> {
+    let hits = 0;
+    const stacks = await mapLimit(urls, MAX_PARALLEL, async (url) => {
+      const hit = this.cache.get(url);
+      if (hit) {
+        hits++;
+        return hit;
+      }
+      const s = await this.api.stack(url, signal);
+      this.cache.set(url, s);
+      return s;
+    });
+    return {
+      img: joinStacks(stacks, region),
+      bytes: stacks.reduce((n, s) => n + s.bytes, 0),
+      requests: urls.length,
+      cached: hits === urls.length,
+      note: '',
+    };
+  }
+
+  /**
+   * Fetches one plane as blosc and turns its voxels into grey pixels. The data is in the plane's own orientation
+   * (rows run along the vertical axis), so no stacking is involved. Anything wider than 8 bits is windowed: the
+   * darkest and brightest half percent clip, and the rest spreads over black to white. Without that, typical
+   * 16-bit data, which rarely uses the whole range, would come out nearly black.
+   */
+  private async loadBlosc(url: string, region: Region, axes: [Axis, Axis], signal: AbortSignal): Promise<Loaded> {
+    const hit = this.bloscCache.get(url);
+    if (hit) return { ...hit, cached: true };
+    const wire = await this.api.blosc(url, signal);
+    const datatype = this.datatype();
+    const { data } = interpretVoxels(await decodeBlosc(wire), datatype, region);
+    const [h, v] = axes;
+    const window = autoWindow(data);
+    const plane = {
+      img: { width: span(region[h]), height: span(region[v]), data: windowToGrey(data, window) },
+      bytes: wire.length,
+      requests: 1,
+      note: `${datatype} window ${shown(window.lo)}–${shown(window.hi)}`,
+    };
+    this.bloscCache.set(url, plane);
+    return { ...plane, cached: false };
   }
 
   /** Fetches the label plane as blosc (one request, any plane) and paints it over the image. */

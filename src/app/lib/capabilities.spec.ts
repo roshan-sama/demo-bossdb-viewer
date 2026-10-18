@@ -1,4 +1,25 @@
-import { capabilitiesOf } from './capabilities';
+import { capabilitiesOf, sliceFormatOf } from './capabilities';
+
+describe('sliceFormatOf', () => {
+  it('uses JPEG for uint8 images, as before', () => {
+    expect(sliceFormatOf({ type: 'image', datatype: 'uint8' })).toBe('jpeg');
+    expect(sliceFormatOf({ type: 'Image', datatype: 'UINT8' })).toBe('jpeg');
+  });
+  it('falls back to blosc for other image channels it can decode', () => {
+    expect(sliceFormatOf({ type: 'image', datatype: 'uint16' })).toBe('blosc');
+    expect(sliceFormatOf({ type: 'IMAGE', datatype: 'UINT16' })).toBe('blosc');
+  });
+  it('does not draw annotation channels as the base image', () => {
+    expect(sliceFormatOf({ type: 'annotation', datatype: 'uint64' })).toBeNull();
+    expect(sliceFormatOf({ type: 'annotation', datatype: 'uint8' })).toBeNull();
+  });
+  it('cannot draw what blosc cannot decode, or a channel with no metadata', () => {
+    expect(sliceFormatOf({ type: 'image', datatype: 'float32' })).toBeNull();
+    expect(sliceFormatOf({ type: 'image', datatype: undefined })).toBeNull();
+    expect(sliceFormatOf({ type: undefined, datatype: 'uint16' })).toBeNull();
+    expect(sliceFormatOf(undefined)).toBeNull();
+  });
+});
 
 describe('capabilitiesOf', () => {
   it('offers both formats for uint8 images', () => {
