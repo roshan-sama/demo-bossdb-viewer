@@ -47,6 +47,10 @@ export class SliceViewer {
   private readonly sliceState = inject(SliceState);
   private readonly canvas =viewChild.required<ElementRef<HTMLCanvasElement>>('cv');
   private readonly overlayCanvas = viewChild<ElementRef<HTMLCanvasElement>>('ov');
+  private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
+  private readonly frame = viewChild.required<ElementRef<HTMLElement>>('frame');
+  private readonly stage = viewChild.required<ElementRef<HTMLElement>>('stage');
+  private readonly fsDialog = viewChild.required<ElementRef<HTMLDialogElement>>('fs');
   private readonly edgeCanvas = viewChild<ElementRef<HTMLCanvasElement>>('ed');
 
   protected readonly planes: Plane[] = ['xy', 'xz', 'yz'];
@@ -58,6 +62,13 @@ export class SliceViewer {
   /** Chosen window corner on the horizontal and vertical axes; null keeps that side centred. */
   protected readonly origin = signal<{ h: number | null; v: number | null }>({ h: null, v: null });
   protected readonly aspect = signal('1 / 1');
+  /** `aspect` as a number, for the fullscreen sizing in CSS. */
+  protected readonly ratio = computed(() => {
+    const [w, h] = this.aspect().split('/').map(Number);
+    return w > 0 && h > 0 ? w / h : 1;
+  });
+  /** Fullscreen fit: `cover` fills the screen and crops the overflow; `contain` shows the whole image. */
+  protected readonly fit = signal<'cover' | 'contain'>('cover');
   protected readonly status = signal({ text: '', warn: '', url: '', error: false });
   protected readonly opacity = signal(0.6);
   protected readonly showZero = signal(false);
@@ -251,6 +262,42 @@ export class SliceViewer {
     const id = p.data[y * p.width + x].toString();
     const name = labelText(this.scheme(), id);
     this.hover.set(`${h}=${p.region[h][0] + x}, ${v}=${p.region[v][0] + y} · label ${id}${name ? ` · ${name}` : ''}`);
+  }
+
+  /**
+   * The layered canvases move into the dialog while it is open (a canvas keeps its pixels when moved), so
+   * hover, opacity and the edge layer keep working with no second set to paint.
+   */
+  protected openFullscreen(): void {
+    const d = this.fsDialog().nativeElement;
+    if (d.open) return;
+    this.stage().nativeElement.appendChild(this.frame().nativeElement);
+    if (typeof d.showModal === 'function') d.showModal();
+    else d.setAttribute('open', '');
+  }
+
+  protected closeFullscreen(): void {
+    const d = this.fsDialog().nativeElement;
+    if (typeof d.close === 'function') d.close();
+    else {
+      d.removeAttribute('open');
+      this.onFullscreenClosed();
+    }
+  }
+
+  /** Runs for every way of closing (button, Escape, backdrop) and puts the image back in the page. */
+  protected onFullscreenClosed(): void {
+    const frame = this.frame().nativeElement;
+    const host = this.host().nativeElement;
+    if (frame.parentElement !== host) host.appendChild(frame);
+  }
+
+  protected onFullscreenClick(e: MouseEvent): void {
+    if (e.target === this.fsDialog().nativeElement) this.closeFullscreen();
+  }
+
+  protected toggleFit(): void {
+    this.fit.update((f) => (f === 'cover' ? 'contain' : 'cover'));
   }
 
   protected onLeave(): void {
