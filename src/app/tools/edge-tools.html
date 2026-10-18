@@ -1,0 +1,24 @@
+<div class="subtabs" role="tablist" aria-label="Edge detection mode">
+  @for (t of tabs; track t.id; let i = $index) {
+    <button
+      type="button"
+      role="tab"
+      [id]="'subtab-' + t.id"
+      [attr.aria-selected]="t.id === active()"
+      [attr.aria-controls]="'subtabpanel-' + t.id"
+      [tabindex]="t.id === active() ? 0 : -1"
+      (click)="active.set(t.id)"
+      (keydown)="onTabKey($event, i)"
+    >{{ t.label }}</button>
+  }
+</div>
+@if (active() === 'static') {
+  <div role="tabpanel" id="subtabpanel-static" aria-labelledby="subtab-static">
+    <app-edge-editor />
+  </div>
+}
+@if (active() === 'animated') {
+  <div role="tabpanel" id="subtabpanel-animated" aria-labelledby="subtab-animated">
+    <app-edge-animated />
+  </div>
+}

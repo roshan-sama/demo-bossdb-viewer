@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { BossApi } from '../boss/boss-api.service';
 import { CoordFrame } from '../boss/boss.models';
+import { SliceState } from './slice-state';
 import { SliceViewer } from './slice-viewer';
 
 const coord = {
@@ -179,5 +180,32 @@ describe('SliceViewer', () => {
     expect(urls.at(-1)).toBe('https://api.bossdb.io/v1/cutout/c/e/h/2/0:250/0:200/50:51/');
     fixture.detectChanges();
     expect(el.textContent).toContain('estimated');
+  });
+
+  it('tells the tools it is ready only once its first image is drawn, and not after it is destroyed', async () => {
+    const state = TestBed.inject(SliceState);
+    const fixture = TestBed.createComponent(SliceViewer);
+    fixture.componentRef.setInput('ref', { collection: 'c', experiment: 'e', channel: 'h' });
+    fixture.componentRef.setInput('coord', coord);
+    fixture.detectChanges();
+    expect(state.ready()).toBe(false);
+    await fixture.whenStable();
+    await tick();
+    expect(state.ready()).toBe(true);
+    expect([state.image()?.width, state.image()?.height]).toEqual([512, 512]);
+    fixture.destroy();
+    expect(state.ready()).toBe(false);
+  });
+
+  it('locks the tools again while a different channel loads', async () => {
+    const state = TestBed.inject(SliceState);
+    const fixture = await setup();
+    expect(state.ready()).toBe(true);
+    fixture.componentRef.setInput('ref', { collection: 'c', experiment: 'e', channel: 'other' });
+    fixture.detectChanges();
+    expect(state.ready()).toBe(false);
+    await fixture.whenStable();
+    await tick();
+    expect(state.ready()).toBe(true);
   });
 });
