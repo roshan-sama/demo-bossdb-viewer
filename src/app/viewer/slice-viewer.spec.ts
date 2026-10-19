@@ -89,6 +89,92 @@ describe('SliceViewer', () => {
       expect((el.querySelector('.frame') as HTMLElement).parentElement?.classList).toContain('frame-host');
     });
 
+    describe('zoom', () => {
+      const labelled = (el: HTMLElement, label: string) => el.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement;
+      const level = (el: HTMLElement) => labelled(el, 'Reset zoom').textContent?.trim();
+      const stageOf = (el: HTMLElement) => el.querySelector('.fs-stage') as HTMLElement;
+      const frameVar = (el: HTMLElement, name: string) => (el.querySelector('.frame') as HTMLElement).style.getPropertyValue(name);
+
+      it('starts at 100% with the zoom buttons in the top-right controls', async () => {
+        const fixture = await setup();
+        const el = fixture.nativeElement as HTMLElement;
+        btn(el, 'Fullscreen').click();
+        fixture.detectChanges();
+        expect(level(el)).toBe('100%');
+        expect(labelled(el, 'Zoom out').disabled).toBe(true);
+        expect(labelled(el, 'Zoom in').disabled).toBe(false);
+        expect(el.querySelector('.fs-controls')?.contains(labelled(el, 'Zoom in'))).toBe(true);
+      });
+
+      it('zooms in and out by 1.5x with the buttons and applies it to the image', async () => {
+        const fixture = await setup();
+        const el = fixture.nativeElement as HTMLElement;
+        btn(el, 'Fullscreen').click();
+        labelled(el, 'Zoom in').click();
+        fixture.detectChanges();
+        expect(level(el)).toBe('150%');
+        expect(frameVar(el, '--zoom')).toBe('1.5');
+        labelled(el, 'Zoom out').click();
+        fixture.detectChanges();
+        expect(level(el)).toBe('100%');
+      });
+
+      it('zooms with the scroll wheel, in on scrolling up and out on scrolling down', async () => {
+        const fixture = await setup();
+        const el = fixture.nativeElement as HTMLElement;
+        btn(el, 'Fullscreen').click();
+        const up = new WheelEvent('wheel', { deltaY: -100, cancelable: true });
+        stageOf(el).dispatchEvent(up);
+        fixture.detectChanges();
+        expect(up.defaultPrevented).toBe(true);
+        expect(level(el)).toBe('122%');
+        stageOf(el).dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+        fixture.detectChanges();
+        expect(level(el)).toBe('100%');
+      });
+
+      it('stops at the largest zoom, resets with the percentage button, and resets on closing', async () => {
+        const fixture = await setup();
+        const el = fixture.nativeElement as HTMLElement;
+        btn(el, 'Fullscreen').click();
+        for (let i = 0; i < 12; i++) labelled(el, 'Zoom in').click();
+        fixture.detectChanges();
+        expect(level(el)).toBe('3200%');
+        expect(labelled(el, 'Zoom in').disabled).toBe(true);
+        labelled(el, 'Reset zoom').click();
+        fixture.detectChanges();
+        expect(level(el)).toBe('100%');
+        labelled(el, 'Zoom in').click();
+        btn(el, 'Close').click();
+        await tick();
+        fixture.detectChanges();
+        expect(level(el)).toBe('100%');
+      });
+
+      it('zooms from the keyboard with +, - and 0', async () => {
+        const fixture = await setup();
+        const el = fixture.nativeElement as HTMLElement;
+        btn(el, 'Fullscreen').click();
+        const dlg = el.querySelector('dialog.fullscreen') as HTMLElement;
+        dlg.dispatchEvent(new KeyboardEvent('keydown', { key: '+', bubbles: true }));
+        fixture.detectChanges();
+        expect(level(el)).toBe('150%');
+        dlg.dispatchEvent(new KeyboardEvent('keydown', { key: '0', bubbles: true }));
+        fixture.detectChanges();
+        expect(level(el)).toBe('100%');
+      });
+
+      it('returns to 100% when the fit is switched', async () => {
+        const fixture = await setup();
+        const el = fixture.nativeElement as HTMLElement;
+        btn(el, 'Fullscreen').click();
+        labelled(el, 'Zoom in').click();
+        btn(el, 'Show whole image').click();
+        fixture.detectChanges();
+        expect(level(el)).toBe('100%');
+      });
+    });
+
     it('fills the screen by default and can switch to showing the whole image', async () => {
       const fixture = await setup();
       const el = fixture.nativeElement as HTMLElement;

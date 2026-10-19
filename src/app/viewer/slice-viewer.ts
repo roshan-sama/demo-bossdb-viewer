@@ -9,6 +9,7 @@ import { labelText, schemeFor } from '../lib/label-names';
 import { LabelData, labelColor, labelCounts, labelsToRgba } from '../lib/labels';
 import { estimateLevel, levelScales, parseDownsample } from '../lib/levels';
 import { Lru } from '../lib/lru';
+import { HOME, MAX_ZOOM, MIN_ZOOM, View, ZOOM_STEP, clampView, zoomAbout } from '../lib/zoom';
 import { PlanePixels, Stack, joinStacks } from '../lib/plane-pixels';
 import { mapLimit } from '../lib/pool';
 import { IntensityWindow, PlaneStats, planeStats, windowToGrey } from '../lib/windowing';
@@ -107,6 +108,15 @@ export class SliceViewer {
   });
   /** Fullscreen fit: `cover` fills the screen and crops the overflow; `contain` shows the whole image. */
   protected readonly fit = signal<'cover' | 'contain'>('cover');
+  /** Magnification and position of the image in the fullscreen dialog. */
+  protected readonly view = signal<View>(HOME);
+  protected readonly zoomLabel = computed(() => `${Math.round(this.view().zoom * 100)}%`);
+  protected readonly dragging = signal(false);
+  protected readonly minZoom = MIN_ZOOM;
+  protected readonly maxZoom = MAX_ZOOM;
+  protected readonly zoomStep = ZOOM_STEP;
+  /** Pointers currently down on the stage: one drags, two pinch. */
+  private readonly pointers = new Map<number, { x: number; y: number }>();
   protected readonly status = signal({ text: '', warn: '', url: '', error: false });
   protected readonly opacity = signal(0.6);
   protected readonly showZero = signal(false);
@@ -328,6 +338,7 @@ export class SliceViewer {
   protected openFullscreen(): void {
     const d = this.fsDialog().nativeElement;
     if (d.open) return;
+    this.view.set(HOME);
     this.stage().nativeElement.appendChild(this.frame().nativeElement);
     if (typeof d.showModal === 'function') d.showModal();
     else d.setAttribute('open', '');
@@ -347,6 +358,9 @@ export class SliceViewer {
     const frame = this.frame().nativeElement;
     const host = this.host().nativeElement;
     if (frame.parentElement !== host) host.appendChild(frame);
+    this.view.set(HOME);
+    this.pointers.clear();
+    this.dragging.set(false);
   }
 
   protected onFullscreenClick(e: MouseEvent): void {
@@ -355,6 +369,84 @@ export class SliceViewer {
 
   protected toggleFit(): void {
     this.fit.update((f) => (f === 'cover' ? 'contain' : 'cover'));
+    this.view.set(HOME); // the image changes size, so the old position no longer means anything
+  }
+
+  protected onFullscreenKey(e: KeyboardEvent): void {
+    if (e.key === '+' || e.key === '=') this.zoomBy(ZOOM_STEP);
+    else if (e.key === '-' || e.key === '_') this.zoomBy(1 / ZOOM_STEP);
+    else if (e.key === '0') this.resetZoom();
+    else return;
+    e.preventDefault();
+  }
+
+  protected resetZoom(): void {
+    this.view.set(HOME);
+  }
+
+  /** The zoom buttons magnify about the middle of the screen. */
+  protected zoomBy(factor: number): void {
+    this.view.update((v) => zoomAbout(v, v.zoom * factor, 0, 0, this.frameSize(), this.stageSize()));
+  }
+
+  /** Scrolling zooms toward the cursor; a notch is about 20%. */
+  protected onWheel(e: WheelEvent): void {
+    e.preventDefault();
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+    const [sx, sy] = this.fromCentre(e.clientX, e.clientY);
+    this.view.update((v) => zoomAbout(v, v.zoom * Math.exp(-e.deltaY * unit * 0.002), sx, sy, this.frameSize(), this.stageSize()));
+  }
+
+  protected onPointerDown(e: PointerEvent): void {
+    try {
+      this.stage().nativeElement.setPointerCapture?.(e.pointerId);
+    } catch {
+      // A pointer that is already gone cannot be captured; dragging still works without.
+    }
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    this.dragging.set(this.view().zoom > 1);
+  }
+
+  /** One pointer drags the image; two pinch it, zooming about the point between them. */
+  protected onPointerMove(e: PointerEvent): void {
+    const prev = this.pointers.get(e.pointerId);
+    if (!prev) return;
+    const next = { x: e.clientX, y: e.clientY };
+    const others = [...this.pointers].filter(([id]) => id !== e.pointerId).map(([, p]) => p);
+    this.pointers.set(e.pointerId, next);
+    if (others.length === 1) {
+      const o = others[0];
+      const before = Math.hypot(prev.x - o.x, prev.y - o.y);
+      const after = Math.hypot(next.x - o.x, next.y - o.y);
+      if (before > 0 && after > 0) {
+        const [sx, sy] = this.fromCentre((next.x + o.x) / 2, (next.y + o.y) / 2);
+        this.view.update((v) => zoomAbout(v, v.zoom * (after / before), sx, sy, this.frameSize(), this.stageSize()));
+      }
+    } else if (others.length === 0 && this.view().zoom > 1) {
+      this.view.update((v) => clampView({ ...v, x: v.x + next.x - prev.x, y: v.y + next.y - prev.y }, this.frameSize(), this.stageSize()));
+    }
+  }
+
+  protected onPointerEnd(e: PointerEvent): void {
+    this.pointers.delete(e.pointerId);
+    if (!this.pointers.size) this.dragging.set(false);
+  }
+
+  private stageSize() {
+    const s = this.stage().nativeElement;
+    return { width: s.clientWidth, height: s.clientHeight };
+  }
+
+  /** The image's layout size, which a CSS transform does not change. */
+  private frameSize() {
+    const f = this.frame().nativeElement;
+    return { width: f.offsetWidth, height: f.offsetHeight };
+  }
+
+  /** A screen position as an offset from the middle of the stage. */
+  private fromCentre(clientX: number, clientY: number): [number, number] {
+    const r = this.stage().nativeElement.getBoundingClientRect();
+    return [clientX - (r.left + r.width / 2), clientY - (r.top + r.height / 2)];
   }
 
   protected onLeave(): void {

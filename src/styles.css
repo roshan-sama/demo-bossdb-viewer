@@ -67,10 +67,15 @@ button.push { margin-left: auto; }
    from its aspect ratio: max() covers the screen (cropping), min() fits the whole image. */
 dialog.fullscreen { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: #000; overflow: hidden; }
 dialog.fullscreen::backdrop { background: #000; }
-.fs-stage { position: absolute; inset: 0; overflow: hidden; container-type: size; }
-dialog.fullscreen .frame { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0; border-radius: 0; width: max(100cqw, 100cqh * var(--ratio, 1)); }
+.fs-stage { position: absolute; inset: 0; overflow: hidden; container-type: size; touch-action: none; }
+.fs-stage.zoomed { cursor: grab; }
+.fs-stage.dragging { cursor: grabbing; }
+dialog.fullscreen .frame { position: absolute; top: 50%; left: 50%; transform: translate(calc(-50% + var(--pan-x, 0px)), calc(-50% + var(--pan-y, 0px))) scale(var(--zoom, 1)); margin: 0; border-radius: 0; width: max(100cqw, 100cqh * var(--ratio, 1)); }
 dialog.fullscreen.contain .frame { width: min(100cqw, 100cqh * var(--ratio, 1)); }
-.fs-controls { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; display: flex; gap: 8px; }
+.fs-controls { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; display: flex; gap: 8px; align-items: center; }
+.fs-controls button.icon { display: inline-flex; align-items: center; padding: 5px 8px; }
+.fs-controls button.zoom-level { min-width: 4.2rem; font-variant-numeric: tabular-nums; }
+.fs-controls button:disabled { opacity: 0.4; cursor: default; }
 .fs-controls button { margin: 0; padding: 6px 14px; background: rgba(0, 0, 0, 0.6); color: #fff; border-color: rgba(255, 255, 255, 0.4); }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; font-size: 0.85rem; }
 .legend .chip { display: inline-flex; align-items: center; gap: 6px; }

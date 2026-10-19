@@ -69,7 +69,7 @@
     <button type="button" class="push" (click)="openFullscreen()">Fullscreen</button>
   </div>
   <div class="frame-host" #host>
-  <div class="frame" #frame [style.--ratio]="ratio()">
+  <div class="frame" #frame [style.--ratio]="ratio()" [style.--zoom]="view().zoom" [style.--pan-x]="view().x + 'px'" [style.--pan-y]="view().y + 'px'">
     <canvas #cv width="4" height="4" [style.aspect-ratio]="aspect()"></canvas>
     @if (overlay()) {
       <canvas
@@ -88,9 +88,26 @@
     }
   </div>
   </div>
-  <dialog #fs class="fullscreen" [class.contain]="fit() === 'contain'" aria-label="Slice viewer, fullscreen" (click)="onFullscreenClick($event)" (close)="onFullscreenClosed()">
-    <div class="fs-stage" #stage></div>
+  <dialog #fs class="fullscreen" [class.contain]="fit() === 'contain'" aria-label="Slice viewer, fullscreen" (click)="onFullscreenClick($event)" (close)="onFullscreenClosed()" (keydown)="onFullscreenKey($event)">
+    <div
+      class="fs-stage"
+      #stage
+      [class.zoomed]="view().zoom > 1"
+      [class.dragging]="dragging()"
+      (wheel)="onWheel($event)"
+      (pointerdown)="onPointerDown($event)"
+      (pointermove)="onPointerMove($event)"
+      (pointerup)="onPointerEnd($event)"
+      (pointercancel)="onPointerEnd($event)"
+    ></div>
     <div class="fs-controls">
+      <button type="button" class="icon" aria-label="Zoom out" title="Zoom out (-)" [disabled]="view().zoom <= minZoom" (click)="zoomBy(1 / zoomStep)">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /><path d="M15 15l6 6M7 10h6" /></svg>
+      </button>
+      <button type="button" class="zoom-level" title="Reset zoom (0)" aria-label="Reset zoom" (click)="resetZoom()">{{ zoomLabel() }}</button>
+      <button type="button" class="icon" aria-label="Zoom in" title="Zoom in (+)" [disabled]="view().zoom >= maxZoom" (click)="zoomBy(zoomStep)">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /><path d="M15 15l6 6M7 10h6M10 7v6" /></svg>
+      </button>
       <button type="button" (click)="toggleFit()">{{ fit() === 'cover' ? 'Show whole image' : 'Fill screen' }}</button>
       <button type="button" (click)="closeFullscreen()">Close</button>
     </div>
